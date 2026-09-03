@@ -1,18 +1,16 @@
 <div class="container-xxl py-4">
-  <h1 class="h4">ngx-formly 7.1.0: a <code>hide</code> expression loses a field's <code>default</code></h1>
-  <p class="text-secondary">
-    Two issues. The first is not about schema composition: <b>any</b> field whose self or ancestor
-    carries a <code>hide</code> expression loses its schema <code>default</code> when the
-    <code>[model]</code> reference is replaced, even while the field is visible. Every
-    <code>oneOf</code> form is affected without opting in, because
-    <code>resolveMultiSchema()</code> puts a <code>hide</code> expression on every branch.
-    <code>URL</code> and <code>Path</code> below additionally carry one of their own,
-    <code>"hide": "!formState.isAdmin"</code> with <code>isAdmin: true</code>, so they are visible
-    the whole time. <code>Name</code> has none and is the control.
-  </p>
-  <p class="text-secondary">
-    Nothing here is customised beyond the field types the JSON Schema guide tells you to register,
-    and Bootstrap is a stylesheet only: <code>&#64;ngx-formly/bootstrap</code> is not installed.
+  <h1 class="h4">ngx-formly 7.1.0: a schema <code>default</code> is applied only once</h1>
+  <ul class="text-secondary">
+    <li>A schema <code>default</code> is written into the model <b>only</b> when its field appears
+      on screen.</li>
+    <li>Each write to the form hands Formly a <b>new</b> object, and only the first write makes
+      the branch appear.</li>
+    <li>So every later write leaves the branch fields blank. <code>Name</code>, outside the
+      <code>oneOf</code>, survives.</li>
+  </ul>
+  <p class="text-secondary small">
+    Stock field types, Bootstrap as a stylesheet only. Full write-up in the
+    <a href="https://github.com/sajalch-evertz/formly-issue">README</a>.
   </p>
 
   <div class="row g-4">
@@ -49,7 +47,7 @@
             </thead>
             <tbody>
               <tr>
-                <td>Control: the branch defaults on the first render</td>
+                <td>First render, before the new model: the branch defaults</td>
                 <td>both present</td>
                 <td><code>{{ modelAtFirstRender.output | json }}</code></td>
                 <td>
@@ -61,7 +59,7 @@
                 </td>
               </tr>
               <tr>
-                <td>Control: <code>name</code>, no <code>hide</code> expression, re-applied to the replaced model</td>
+                <td>After the new model: <code>name</code>, which has no <code>hide</code> expression</td>
                 <td><code>"my-job"</code></td>
                 <td><code>{{ modelAfterModelReplaced?.name | json }}</code></td>
                 <td>
@@ -73,7 +71,7 @@
                 </td>
               </tr>
               <tr>
-                <td><b>Issue 1:</b> the branch defaults, re-applied to the replaced model</td>
+                <td><b>Issue 1:</b> after the new model: the branch defaults</td>
                 <td>both present</td>
                 <td><code>{{ modelAfterModelReplaced?.output | json }}</code></td>
                 <td>
@@ -85,7 +83,7 @@
                 </td>
               </tr>
               <tr>
-                <td><b>Issue 2:</b> <code>form.dirty</code> once a branch switch has changed the model</td>
+                <td><b>Issue 2:</b> after switching branch: <code>form.dirty</code></td>
                 <td><code>true</code></td>
                 <td><code>{{ form.dirty }}</code></td>
                 <td>
@@ -106,19 +104,19 @@
       <div class="row g-3 mt-1">
         <div class="col-md-4">
           <div class="card h-100">
-            <div class="card-header small fw-semibold">At the first render</div>
+            <div class="card-header small fw-semibold">1. At the first render</div>
             <pre class="card-body mb-0 small">{{ modelAtFirstRender | json }}</pre>
           </div>
         </div>
         <div class="col-md-4">
           <div class="card h-100">
-            <div class="card-header small fw-semibold">After the reference was replaced</div>
+            <div class="card-header small fw-semibold">2. After the new model</div>
             <pre class="card-body mb-0 small">{{ modelAfterModelReplaced | json }}</pre>
           </div>
         </div>
         <div class="col-md-4">
           <div class="card h-100">
-            <div class="card-header small fw-semibold">Now</div>
+            <div class="card-header small fw-semibold">3. Now</div>
             <pre class="card-body mb-0 small">{{ model | json }}</pre>
           </div>
         </div>
@@ -126,27 +124,21 @@
     </div>
   </div>
 
-  <h2 class="h6 mt-4">Issue 1: a replaced <code>[model]</code> reference loses the branch's defaults</h2>
-  <p class="text-secondary">
-    This page renders the form with an empty model, then replaces the <code>[model]</code>
-    reference with a fresh empty record one tick later: what a host does when it renders before
-    its data arrives, and what any <code>ControlValueAccessor</code> wrapper does in
-    <code>writeValue</code>. Every default should be re-applied to the new record.
-    <code>name</code> is; nothing inside the branch is, the gated <code>URL</code> included.
-  </p>
+  <h2 class="h6 mt-4">Issue 1: a <code>default</code> is applied only when its field becomes visible</h2>
+  <ul class="text-secondary">
+    <li>Card 1 holds the branch defaults. Card 2, the same object after the second write, does not.</li>
+    <li>Switch the branch and back and they reappear; press <b>Discard</b> and they go again,
+      because a discard is another write.</li>
+    <li><code>URL</code> has its own <code>"hide": "!formState.isAdmin"</code> with the flag
+      <code>true</code>, so it is visible throughout and still loses its default.
+      <code>Timeout (ms)</code> has none, only the branch's.</li>
+  </ul>
 
-  <h2 class="h6">Issue 2: switching branch changes the model but leaves the form pristine</h2>
-  <p class="text-secondary">
-    Switch the branch selector between <b>HTTP</b> and <b>File</b>. The model changes, and
-    <code>form.dirty</code> stays <code>false</code>, because the selector Formly builds for the
-    branches has no <code>key</code> and so is never attached to the form. Switching also restores
-    the branch defaults, which shows the code that applies them works and simply never runs on a
-    rebuild.
-  </p>
-  <p class="text-secondary">
-    To reach <b>Discard</b>, switch the branch to bring the defaults back, then edit a field.
-    Discard writes the loaded record back in and marks the form pristine, as a
-    <code>ControlValueAccessor</code> host does. That write replaces the <code>[model]</code>
-    reference, so the branch defaults empty again: issue 1 fires on every discard, not just at load.
-  </p>
+  <h2 class="h6">Issue 2: switching branch leaves the form pristine</h2>
+  <ul class="text-secondary">
+    <li>Switch the selector: the model changes, <code>form.dirty</code> stays <code>false</code>,
+      <b>Discard</b> stays disabled.</li>
+    <li>The selector Formly builds has no <code>key</code>, so its control is never attached to
+      the form.</li>
+  </ul>
 </div>

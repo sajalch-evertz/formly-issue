@@ -1,11 +1,9 @@
-# ngx-formly: a `hide` expression loses a field's `default` when the model reference is replaced
+# ngx-formly: schema defaults are lost when the form is handed a new model object
 
 Minimal reproduction of two independent issues.
 
-1. **Any** field whose self or ancestor carries a `hide` expression loses its schema `default`
-   when the `[model]` reference is replaced, even while the field is visible. Defaults on fields
-   without a `hide` expression are re-applied normally. Every `oneOf` / `anyOf` form is affected
-   without opting in, because `resolveMultiSchema()` puts a `hide` expression on every branch.
+1. A schema `default` is applied only when its field appears on screen, so a later write of the
+   `[model]` never gets one. Everything inside a `oneOf` is affected, visible or not.
 2. Changing a `oneOf` branch selector changes the model but leaves the form pristine.
 
 **Live:** https://sajalch-evertz.github.io/formly-issue/
@@ -19,12 +17,10 @@ Minimal reproduction of two independent issues.
 | TypeScript | 5.8.3 |
 | Node | 22 |
 
-No UI theme package is involved: `@ngx-formly/bootstrap` is not installed, and Bootstrap is here
-as a stylesheet and nothing else. The only field types registered are the ones the
-[JSON Schema guide](https://formly.dev/docs/guides/json-schema) says to register
-(`string`, `number`, `integer`, `boolean`, `enum`, `array`, `object`, `multischema`), and they are
-in [`src/field-types.ts`](src/field-types.ts): each one just renders its control or its
-`fieldGroup`.
+- No UI theme package: `@ngx-formly/bootstrap` is not installed, Bootstrap is a stylesheet only.
+- The field types in [`src/field-types.ts`](src/field-types.ts) are the ones the
+  [JSON Schema guide](https://formly.dev/docs/guides/json-schema) says to register, and each one
+  just renders its control or its `fieldGroup`.
 
 ## Run it
 
@@ -34,19 +30,52 @@ npm start    # http://localhost:4300, a PASS/FAIL panel for both issues
 ```
 
 `src/main.ts` imports `@angular/compiler` before bootstrapping, so the app also runs in a sandbox
-that bundles without the Angular CLI and therefore without the Angular Linker. It makes no
-difference to `ng build` or `ng test`.
+that bundles without the Angular CLI and therefore without the Angular Linker.
 
 ---
 
-## Issue 1: a visible field with a `hide` expression loses its `default`
+## Issue 1: a `default` is applied only when its field becomes visible, so a later write loses it
+
+- A schema `default` is written into the model **only** when its field appears on screen.
+- Each write to the form hands Formly a **new** object, and only the first write makes the branch
+  appear.
+- So every later write leaves the branch fields blank. `name`, outside the `oneOf`, survives.
+
+### What you see
+
+Write 2 handed over an empty record, exactly like the one write 1 filled in:
+
+```json
+after write 1:  { "name": "my-job", "output": { "url": "https://example.test/ingest", "timeoutMs": 5000 } }
+after write 2:  { "name": "my-job" }
+```
+
+### Steps
+
+1. `npm start` and open the page. `Name` shows `my-job`; `URL` and `Timeout (ms)` are empty.
+2. Card 1 (first render) holds the branch defaults. Card 2 (after the new model) does not.
+3. Switch the branch to `File` and back and they reappear; press `Discard` and they go again.
+
+### Why a form is written to more than once
+
+Angular's contract, not something the page arranges:
+
+- `setUpControl()` calls `writeValue(control.value)` the instant a `ControlValueAccessor`
+  registers, and on a fresh `NgModel` that value is `null`. `NgModel._updateValue` then defers the
+  real value to a microtask, so it always lands after that. Every discard writes again.
+- A wrapper must clone per write, or Formly mutates a store object. So it rebuilds at least twice
+  on load and once per discard. No ordering avoids it.
+
+### Why "appears on screen" catches every `oneOf`
+
+- `resolveMultiSchema()` puts a `hide` expression on every branch, so everything inside inherits
+  one without the schema asking. That is `timeoutMs`, which has none of its own.
+- `url` has its own, `"hide": "!formState.isAdmin"`, on a flag that is `true` throughout, so the
+  field is visible the whole time. Lost too.
+- Either is enough. No `oneOf` needed: one plain field with a `hide` expression and a `default`
+  loses it the same way.
 
 ### The schema
-
-Every property in a branch declares a `default`. `url` and `path` additionally carry a `hide`
-expression gated on an access flag, the everyday reason a field has one. `formState.isAdmin` is
-`true`, so both are visible the whole time. `name` sits outside the `oneOf` with no `hide`
-expression and is the control.
 
 ```jsonc
 {
@@ -54,7 +83,6 @@ expression and is the control.
   "properties": {
     "name": { "type": "string", "default": "my-job" },   // control, no hide expression
     "output": {
-      "title": "Output",
       "oneOf": [
         { "title": "HTTP", "type": "object", "properties": {
             "url": { "type": "string", "default": "https://example.test/ingest",
@@ -70,128 +98,51 @@ expression and is the control.
 }
 ```
 
-### Steps
+### Why the default goes in only once
 
-1. Render `<formly-form>` with an empty model and `formState: { isAdmin: true }`. Everything is
-   correct at this point:
+Only two places in Formly write a `defaultValue` into the model, and a rebuild reaches neither.
 
-   ```json
-   { "name": "my-job", "output": { "url": "https://example.test/ingest", "timeoutMs": 5000 } }
-   ```
+- **`CoreExtension.onPopulate` skips it.** Its gate ends in `!isHiddenField(field)`, and
+  `isHiddenField` tests whether a `hide` expression **exists**, not what it evaluates to:
 
-2. Assign a **new** empty object to the `[model]` input. That is what a host does when it renders
-   before its data arrives, and what any `ControlValueAccessor` wrapper does in `writeValue`. The
-   new record is empty, exactly like the one the form started from, so every default should be
-   applied to it again.
+  ```ts
+  const isHidden = (f) => f.hide || f.expressions?.hide || f.hideExpression;
+  ```
 
-3. The model is now:
+  `f.expressions.hide` is a function, so it is permanently truthy, and the walk up the parents
+  covers everything inside a branch. A visible field counts as hidden.
 
-   ```json
-   { "name": "my-job" }
-   ```
+- **`changeHideState()`'s `hide === false` arm holds the other one**, and it runs only on a
+  **transition** of `field.hide`.
 
-### Expected
+- **There is no transition.** `build()` ends with `checkExpressions(field, true)`, which
+  re-assigns `field.hide = false` over `false`, and `observe()`'s setter drops a write that does
+  not change the value:
 
-Every `default` in the schema is re-applied to the new record.
+  ```ts
+  set: (currentValue) => {
+    if (currentValue !== state.value) { ...state.onChange.forEach(...) }
+  }
+  ```
 
-### Actual
+  Nothing reaches `_hiddenFieldsForCheck`, so `postPopulate` has nothing to drain. Meanwhile
+  `registerControl()` patches the control to the new model's `undefined`, which blanks the input.
 
-| | first render | after the reference is replaced |
-| --- | --- | --- |
-| `name`, no `hide` expression | `"my-job"` | `"my-job"` |
-| `output.url`, its own `hide` expression, visible | `"https://example.test/ingest"` | **missing** |
-| `output.timeoutMs`, inherits the branch's `hide` expression | `5000` | **missing** |
-
-Both branch inputs render empty. Switching the branch away and back restores both, which shows
-the code that applies the defaults works and simply never runs on a rebuild.
-
-It is not only a load-time problem. Any later write does the same, so a discard that writes the
-loaded record back in and marks the form pristine empties the branch defaults again. The
-`Discard` button on the page does exactly that.
-
-`url` and `timeoutMs` are lost for the same reason, and it is not `oneOf` specific: `url` has a
-`hide` expression of its own and `timeoutMs` only inherits the one
-`resolveMultiSchema()` puts on the branch. Either is enough. A schema with no composition at all,
-one plain field with a `hide` expression and a `default`, loses it the same way.
-
-### Why it happens
-
-Replacing the model reference makes `FormlyForm.ngOnChanges` call `builder.build(this.field)`
-again over the same field objects. Four things happen in that rebuild, and between them nothing
-puts the default back.
-
-**1. The build-time assignment is skipped.** `CoreExtension.onPopulate` has one gate for defaults:
-
-```ts
-if (hasKey(field) && !isUndefined(field.defaultValue) &&
-    isUndefined(getFieldValue(field)) && !isHiddenField(field)) {
-  assignFieldValue(field, field.defaultValue);
-}
-```
-
-The first three conditions hold. The fourth fails, because `isHiddenField()` tests whether a
-`hide` expression **exists**, not what it evaluates to:
-
-```ts
-const isHidden = (f) => f.hide || f.expressions?.hide || f.hideExpression;
-```
-
-`f.expressions.hide` is a function, so it is permanently truthy. The walk up the parents means
-this covers the field itself and everything beneath it. A visible field is treated as hidden for
-the purposes of its own default.
-
-**2. The existing control is cleared to match the new model.** `FieldFormExtension.addFormControl`
-finds the control from the first render, still holding the default, sets
-`control.defaultValue = getFieldValue(field)` which is now `undefined`, and `registerControl()`
-then reaches:
-
-```ts
-if (!(isNil(control.value) && isNil(value)) && control.value !== value && control instanceof FormControl) {
-  control.patchValue(value);
-}
-```
-
-so the value is patched to `undefined`. Correct on its own terms, and it means the default now has
-to be re-applied by someone.
-
-**3. The `hide` expression re-applies its old value, silently.** `builder.build()` ends with
-`options.checkExpressions(field, true)`. With `ignoreCache` set, every expression re-applies even
-when unchanged, so `evalExpr(field, 'hide', false)` runs and assigns `field.hide = false`. That
-write goes through the `observe()` installed on `hide`, whose setter is guarded:
-
-```ts
-set: (currentValue) => {
-  if (currentValue !== state.value) { ...state.onChange.forEach(...) }
-}
-```
-
-`field.hide` was already `false`. `false !== false` is false, so no observer fires.
-
-**4. So the only remaining assignment never runs.** That observer is the only thing that pushes
-into `options._hiddenFieldsForCheck`, which is the only thing `FieldExpressionExtension.postPopulate`
-drains into `changeHideState()`. Its `hide === false` arm holds the only other
-`assignFieldValue(field, field.defaultValue)` in the codebase. Empty queue, arm never runs.
-
-This also explains the two passing controls. On the **first** render step 3 assigns `false` over
-`undefined`, which is a real change, so the observer fires and the default lands. And **switching
-a branch** away and back produces two real transitions, `false` to `true` to `false`, so the
-second one restores the default. A field's `default` under a `hide` expression has only ever been
-applied by riding a hide transition, and a rebuild against a new model produces none.
+- **The passing cases fit.** First render assigns `false` over `undefined`, a real transition.
+  Switching branch away and back is two of them, which is why the values come back.
 
 ### `resetOnHide` is the deciding term, and its global switch cannot reach a branch
-
-The gate in `isHiddenField()` starts with `resetOnHide`:
 
 ```ts
 let setDefaultValue = !field.resetOnHide || !isHidden(field);
 ```
 
-so with `resetOnHide` falsy the default is assigned at build time and the defect disappears, no
-hide transition required. This repro sets `extras: { resetFieldOnHide: true }` explicitly in
-[`src/formly-config.ts`](src/formly-config.ts), which is Formly's own default, so the premise is
-stated rather than implied. There are two ways to turn it off and only one of them works.
-
-Measured on this repro, model as it stands before the replacement and after it:
+- With `resetOnHide` falsy the default is assigned at build time and the defect disappears, no
+  hide transition required.
+- This repro sets `extras: { resetFieldOnHide: true }` explicitly in
+  [`src/formly-config.ts`](src/formly-config.ts), which is Formly's own default, so the premise is
+  stated rather than implied.
+- Two ways to turn it off, only one works. Measured, model before the second write and after:
 
 | | before | after |
 | --- | --- | --- |
@@ -199,7 +150,7 @@ Measured on this repro, model as it stands before the replacement and after it:
 | `extras: { resetFieldOnHide: false }` | `{"url": "...", "timeoutMs": 5000}` | `{}` |
 | `resetOnHide: false` on `timeoutMs` only | `{"url": "...", "timeoutMs": 5000}` | `{"timeoutMs": 5000}` |
 
-The app-level switch makes no difference at all, because the JSON schema service overrides it for
+The app-level switch makes no difference, because the JSON schema service overrides it for
 anything under a `oneOf`:
 
 ```ts
@@ -209,13 +160,13 @@ if (options.resetOnHide) {
 }
 ```
 
-and `resolveMultiSchema()` always passes `resetOnHide: true` in those options. For a branch and
-everything inside it, `resetOnHide` is `true` whatever the application configured.
+`resolveMultiSchema()` always passes `resetOnHide: true` in those options, so for a branch and
+everything inside it `resetOnHide` is `true` whatever the application configured.
 
 ### Consumer workaround
 
-Per field, through Formly's schema extension, which is merged later in `_toFieldConfig()` than the
-line above and which `CoreExtension` respects because it tests `field.resetOnHide !== false`:
+Per field, through Formly's schema extension. It is merged later in `_toFieldConfig()` than the
+line above, and `CoreExtension` respects it because it tests `field.resetOnHide !== false`:
 
 ```jsonc
 "timeoutMs": {
@@ -225,10 +176,9 @@ line above and which `CoreExtension` respects because it tests `field.resetOnHid
 }
 ```
 
-Two caveats. It changes reset semantics for that field: a genuinely hidden field now keeps its
-value in the model, so an access-gated field would still submit its default to a user who cannot
-see it. And it has to be applied to every property that declares a `default`, since the setting is
-per field.
+- It changes reset semantics: a genuinely hidden field now keeps its value in the model, so an
+  access-gated field would submit its default to a user who cannot see it.
+- It has to go on every property that declares a `default`.
 
 ### Suggestion
 
@@ -254,7 +204,7 @@ A user-driven branch change reaches the form's dirty state: `form.dirty` becomes
 ### Actual
 
 `form.dirty` stays `false` for as long as the user only switches branches, so nothing driven by
-the form's pristine state can see the change.
+the form's pristine state sees the change.
 
 ### Why it happens
 
@@ -277,8 +227,9 @@ if (!field.form || !hasKey(field)) {
 }
 ```
 
-so the selector's control is never attached to the form. The `ControlValueAccessor` marks that
-detached control dirty on a real user selection, and the root form never hears about it.
+- The selector's control is never attached to the form.
+- Its `ControlValueAccessor` marks that detached control dirty on a real user selection.
+- The root form never hears about it.
 
 ### Suggestion
 
@@ -301,8 +252,13 @@ selector.props.change = (field: FormlyFieldConfig): void => {
 
 ## Ruled out
 
-Issue 1 is not specific to a schema shape. Defaults are applied correctly on the first render for
-a property-level `oneOf`, a root-level `oneOf` alongside `properties`, `array.items.oneOf` with a
-row in the model, and a row added through the array's Add button, at one and at two levels of
-nesting. The trigger is only the `[model]` reference being replaced afterwards, and the condition
-is only that a `hide` expression exists on the field or on an ancestor.
+Issue 1 is not specific to a schema shape. Defaults are applied correctly on the first render for:
+
+- a property-level `oneOf`
+- a root-level `oneOf` alongside `properties`
+- `array.items.oneOf` with a row already in the model
+- a row added through the array's Add button
+- all of the above at one and at two levels of nesting
+
+The only trigger is a later write of the `[model]`, and the only condition is that a `hide`
+expression exists on the field or on an ancestor.
