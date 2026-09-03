@@ -1,7 +1,7 @@
 <h1>ngx-formly 7.1.0: JSON Schema <code>oneOf</code> branch defaults and dirty state</h1>
 
 <p>
-  Two independent issues, both visible below. Nothing on this page is customised beyond the field
+  Three independent issues, all visible below. Nothing on this page is customised beyond the field
   types the JSON Schema guide tells you to register.
 </p>
 
@@ -16,11 +16,20 @@
 
 <h2>Issue 2: switching branch changes the model but leaves the form pristine</h2>
 <p>
-  Switch <b>Output</b> between <b>HTTP</b> and <b>File</b>. The model changes, so
-  <b>Discard</b> should become available. It stays disabled, because the selector Formly builds
-  for the branches has no <code>key</code> and so is never attached to the form.
-  Switching also restores <code>timeoutMs</code>, which shows the code that applies branch
-  defaults works and simply never runs on a rebuild.
+  Switch the branch selector between <b>HTTP</b> and <b>File</b>. The model changes, and
+  <code>form.dirty</code> stays <code>false</code>, because the selector Formly builds for the
+  branches has no <code>key</code> and so is never attached to the form. Switching also restores
+  <code>timeoutMs</code>, which shows the code that applies branch defaults works and simply
+  never runs on a rebuild.
+</p>
+
+<h2>Issue 3: the branch selector carries no label and no supported way to give it one</h2>
+<p>
+  The <code>oneOf</code> node's <code>"title": "Output"</code> never reaches the selector, which
+  renders with whatever fallback text the field type hardcodes (<code>Select</code>, here).
+  The selector has no <code>key</code> and is the one field
+  <code>toFieldConfig</code>'s <code>map</code> callback is never called for, so there is no
+  supported way to label, translate or otherwise configure the choice the user is making.
 </p>
 
 <h2>Form</h2>
@@ -87,6 +96,18 @@
         @if (!modelChanged) {
           <span class="pending">switch the Output selector to evaluate</span>
         } @else if (dirtyTracksBranchSwitch) {
+          <span class="pass">PASS</span>
+        } @else {
+          <span class="fail">FAIL</span>
+        }
+      </td>
+    </tr>
+    <tr>
+      <td><b>Issue 3:</b> the branch selector carries the <code>oneOf</code> node's title</td>
+      <td><code>"Output"</code></td>
+      <td><code>{{ selectorLabel | json }}</code></td>
+      <td>
+        @if (selectorLabelled) {
           <span class="pass">PASS</span>
         } @else {
           <span class="fail">FAIL</span>

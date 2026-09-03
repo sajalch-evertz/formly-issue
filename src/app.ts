@@ -106,9 +106,19 @@ export class AppComponent {
     return this.modelJsonAfterReplace !== '' && JSON.stringify(this.model) !== this.modelJsonAfterReplace;
   }
 
-  /** Issue 2: the model changed, the form is still pristine, so Discard stays disabled. */
+  /** Issue 2: the model changed, and the form is still pristine. */
   get dirtyTracksBranchSwitch(): boolean {
     return !this.modelChanged || this.form.dirty;
+  }
+
+  /** Issue 3: the `oneOf` node's `title` never reaches the selector, so it renders unlabelled. */
+  get selectorLabel(): string | undefined {
+    const selector = findMultiSchemaField(this.fields)?.fieldGroup?.[0];
+    return selector?.props?.['label'] as string | undefined;
+  }
+
+  get selectorLabelled(): boolean {
+    return this.selectorLabel !== undefined;
   }
 
   get modelJson(): string {
@@ -118,4 +128,18 @@ export class AppComponent {
   discard(): void {
     this.form.reset();
   }
+}
+
+/** The `multischema` node has no key, so a consumer can only find it by walking the tree. */
+function findMultiSchemaField(fields: FormlyFieldConfig[]): FormlyFieldConfig | undefined {
+  for (const field of fields) {
+    if (field.type === 'multischema') {
+      return field;
+    }
+    const found = field.fieldGroup && findMultiSchemaField(field.fieldGroup);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
 }
