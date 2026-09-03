@@ -30,6 +30,10 @@ npm test     # 3 checks pass, 2 fail. The 2 failures are the two issues.
 npm start    # http://localhost:4300, same thing in the browser with a PASS/FAIL panel
 ```
 
+`src/main.ts` imports `@angular/compiler` before bootstrapping, so the app also runs in a sandbox
+that bundles without the Angular CLI and therefore without the Angular Linker. It makes no
+difference to `ng build` or `ng test`.
+
 ## The schema
 
 ```jsonc
