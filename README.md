@@ -105,6 +105,10 @@ Every `default` in the schema is re-applied to the new record.
 Both branch inputs render empty. Switching the branch away and back restores both, which shows
 the code that applies the defaults works and simply never runs on a rebuild.
 
+It is not only a load-time problem. Any later write does the same, so a discard that writes the
+loaded record back in and marks the form pristine empties the branch defaults again. The
+`Discard` button on the page does exactly that.
+
 `url` and `timeoutMs` are lost for the same reason, and it is not `oneOf` specific: `url` has a
 `hide` expression of its own and `timeoutMs` only inherits the one
 `resolveMultiSchema()` puts on the branch. Either is enough. A schema with no composition at all,

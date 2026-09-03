@@ -143,4 +143,10 @@
     the branch defaults, which shows the code that applies them works and simply never runs on a
     rebuild.
   </p>
+  <p class="text-secondary">
+    To reach <b>Discard</b>, switch the branch to bring the defaults back, then edit a field.
+    Discard writes the loaded record back in and marks the form pristine, as a
+    <code>ControlValueAccessor</code> host does. That write replaces the <code>[model]</code>
+    reference, so the branch defaults empty again: issue 1 fires on every discard, not just at load.
+  </p>
 </div>
