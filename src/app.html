@@ -1,7 +1,7 @@
 <div class="container py-4" style="max-width: 62rem">
-  <h1 class="h4">ngx-formly 7.1.0: JSON Schema <code>oneOf</code> branch defaults, dirty state and the selector</h1>
+  <h1 class="h4">ngx-formly 7.1.0: JSON Schema <code>oneOf</code> branch defaults and dirty state</h1>
   <p class="text-secondary">
-    Three independent issues, all visible below. Nothing on this page is customised beyond the
+    Two independent issues, both visible below. Nothing on this page is customised beyond the
     field types the JSON Schema guide tells you to register. Bootstrap is loaded as a stylesheet
     only: <code>&#64;ngx-formly/bootstrap</code> is not installed.
   </p>
@@ -89,18 +89,6 @@
                   }
                 </td>
               </tr>
-              <tr>
-                <td><b>Issue 3:</b> the branch selector carries the <code>oneOf</code> node's title</td>
-                <td><code>"Output"</code></td>
-                <td><code>{{ selectorLabel | json }}</code></td>
-                <td>
-                  @if (selectorLabelled) {
-                    <span class="badge text-bg-success">PASS</span>
-                  } @else {
-                    <span class="badge text-bg-danger">FAIL</span>
-                  }
-                </td>
-              </tr>
             </tbody>
           </table>
         </div>
@@ -148,12 +136,4 @@
     rebuild.
   </p>
 
-  <h2 class="h6">Issue 3: the branch selector carries no label and no supported way to give it one</h2>
-  <p class="text-secondary">
-    The <code>oneOf</code> node's <code>"title": "Output"</code> never reaches the selector, which
-    renders with whatever fallback text the field type hardcodes (<code>Select</code>, here). The
-    selector has no <code>key</code> and is the one field <code>toFieldConfig</code>'s
-    <code>map</code> callback is never called for, so there is no supported way to label,
-    translate or otherwise configure the choice the user is making.
-  </p>
 </div>

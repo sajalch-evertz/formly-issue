@@ -143,16 +143,6 @@ export class AppComponent {
     return !this.modelChanged || this.form.dirty;
   }
 
-  /** Issue 3: the `oneOf` node's `title` never reaches the selector, so it renders unlabelled. */
-  get selectorLabel(): string | undefined {
-    const selector = findMultiSchemaField(this.fields)?.fieldGroup?.[0];
-    return selector?.props?.['label'] as string | undefined;
-  }
-
-  get selectorLabelled(): boolean {
-    return this.selectorLabel !== undefined;
-  }
-
   get modelJson(): string {
     return JSON.stringify(this.model, null, 2);
   }
@@ -160,18 +150,4 @@ export class AppComponent {
   discard(): void {
     this.form.reset();
   }
-}
-
-/** The `multischema` node has no key, so a consumer can only find it by walking the tree. */
-function findMultiSchemaField(fields: FormlyFieldConfig[]): FormlyFieldConfig | undefined {
-  for (const field of fields) {
-    if (field.type === 'multischema') {
-      return field;
-    }
-    const found = field.fieldGroup && findMultiSchemaField(field.fieldGroup);
-    if (found) {
-      return found;
-    }
-  }
-  return undefined;
 }

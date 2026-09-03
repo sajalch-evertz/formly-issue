@@ -1,11 +1,10 @@
-# ngx-formly JSON Schema `oneOf`: three issues
+# ngx-formly JSON Schema `oneOf`: two issues
 
-Minimal reproduction of three independent issues in the JSON Schema `oneOf` / `anyOf` support:
+Minimal reproduction of two independent issues in the JSON Schema `oneOf` / `anyOf` support:
 
 1. When the `[model]` reference is replaced after the first render, the selected branch's schema
    `default`s are not re-applied. Defaults declared outside the `oneOf` are.
 2. Changing the branch selector changes the model but leaves the form pristine.
-3. The branch selector carries no label, and no supported API can reach it to give it one.
 
 **Live:** https://sajalch-evertz.github.io/formly-issue/
 
@@ -29,7 +28,7 @@ in [`src/field-types.ts`](src/field-types.ts): each one just renders its control
 
 ```bash
 npm install
-npm test     # 4 checks pass, 4 fail. The failures are the three issues.
+npm test     # 3 checks pass, 2 fail. The 2 failures are the two issues.
 npm start    # http://localhost:4300, same thing in the browser with a PASS/FAIL panel
 ```
 
@@ -208,45 +207,6 @@ selector.props.change = (field: FormlyFieldConfig): void => {
   root.formControl?.markAsDirty();
 };
 ```
-
----
-
-## Issue 3: the branch selector carries no label, and nothing can reach it to give it one
-
-### Steps
-
-1. Give the `oneOf` node a `title`, as in the schema above: `"output": { "title": "Output", "oneOf": [...] }`.
-2. Render the form and look at the selector.
-3. Pass a `map` callback to `toFieldConfig` and log every field it is called for.
-
-### Expected
-
-The selector is a field like any other: it carries the `oneOf` node's title so a field type can
-render it, and `map` is called for it so a consumer can configure it.
-
-### Actual
-
-- The selector's `props.label` is `undefined`. The `title` stays on the `oneOf` node, which
-  `_toFieldConfig` types as `formly-group`, and that renders no label, so the title appears
-  nowhere in the form. Whatever the user sees above the choice is fallback text hardcoded by the
-  field type.
-- `map` is called for the branches and their properties (`url:string`, `output:object`,
-  `path:string`, `output:object`) and for the `oneOf` node itself, but never for the selector:
-  `resolveMultiSchema()` builds it as a literal and never routes it through `_toFieldConfig()`,
-  which is the only place `map` is applied.
-- The selector has no `key` either, so it cannot be addressed by key.
-
-Together that leaves no supported way to label, translate, or set any prop on the one field the
-user actually interacts with. The only route is to walk `field.fieldGroup[0]` of the
-`multischema` node and mutate the object Formly built.
-
-Failing specs: `passes the branch selector through the map callback` and
-`carries the oneOf node's title onto the selector`.
-
-### Suggestion
-
-Route the selector through `_toFieldConfig()` (or at least through `options.map`), and copy the
-`oneOf` node's `title` and `description` onto it.
 
 ---
 
