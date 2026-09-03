@@ -1,0 +1,203 @@
+# ngx-formly JSON Schema `oneOf`: two issues
+
+Minimal reproduction of two independent issues in the JSON Schema `oneOf` / `anyOf` support:
+
+1. When the `[model]` reference is replaced after the first render, the selected branch's schema
+   `default`s are not re-applied. Defaults declared outside the `oneOf` are.
+2. Changing the branch selector changes the model but leaves the form pristine, so any
+   Save / Discard button gated on `form.dirty` stays disabled.
+
+## Versions
+
+| Package | Version |
+| --- | --- |
+| `@ngx-formly/core` | 7.1.0 |
+| `@angular/core` | 20.3.27 |
+| TypeScript | 5.8.3 |
+| Node | 22 |
+
+No UI theme package is involved. The only field types registered are the ones the
+[JSON Schema guide](https://formly.dev/docs/guides/json-schema) says to register
+(`string`, `number`, `integer`, `boolean`, `enum`, `array`, `object`, `multischema`), and they are
+in [`src/field-types.ts`](src/field-types.ts): each one just renders its control or its
+`fieldGroup`.
+
+## Run it
+
+```bash
+npm install
+npm test     # 3 checks pass, 2 fail. The 2 failures are the two issues.
+npm start    # http://localhost:4300, same thing in the browser with a PASS/FAIL panel
+```
+
+## The schema
+
+```jsonc
+{
+  "type": "object",
+  "properties": {
+    "name": { "type": "string", "default": "my-job" },   // control case, outside the oneOf
+    "output": {
+      "oneOf": [
+        { "title": "HTTP", "type": "object",
+          "properties": { "url": { "type": "string" },
+                          "timeoutMs": { "type": "integer", "default": 5000 } },
+          "required": ["url"] },
+        { "title": "File", "type": "object",
+          "properties": { "path": { "type": "string" },
+                          "rotateMb": { "type": "integer", "default": 100 } },
+          "required": ["path"] }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## Issue 1: a replaced `[model]` reference loses the selected branch's defaults
+
+### Steps
+
+1. Render `<formly-form>` with an empty model. Everything is correct at this point:
+
+   ```json
+   { "name": "my-job", "output": { "timeoutMs": 5000 } }
+   ```
+
+2. Assign a **new** empty object to the `[model]` input. This is what a host does when it renders
+   the form before its data arrives, and what any `ControlValueAccessor` wrapper does in
+   `writeValue`.
+
+3. The model is now:
+
+   ```json
+   { "name": "my-job" }
+   ```
+
+### Expected
+
+Every `default` in the schema is re-applied to the new record, so `output.timeoutMs` is `5000`
+again. It is an empty record, exactly like the one the form started from.
+
+### Actual
+
+`name` is re-applied. The selected branch's `timeoutMs` is dropped, and the input renders empty.
+Switching the branch away and back restores it, which shows the code that applies branch defaults
+works and simply never runs on a rebuild.
+
+Failing spec: `re-applies the selected branch default to a replaced model` in
+[`src/oneof.spec.ts`](src/oneof.spec.ts).
+
+### Why it happens
+
+Two rules meet, and between them nothing assigns the default:
+
+- `resolveMultiSchema()` in `src/core/json-schema/formly-json-schema.service.ts` gives every
+  branch an `expressions.hide` and `resetOnHide: true`.
+- `isHiddenField()` in `src/core/src/lib/utils.ts` treats a field as hidden when a `hide`
+  expression merely **exists**, whatever it evaluates to:
+
+  ```ts
+  const isHidden = (f) => f.hide || f.expressions?.hide || f.hideExpression;
+  ```
+
+  So for anything inside a branch it walks up, finds the branch, and reports hidden. That makes
+  `CoreExtension` in `src/core/src/lib/extensions/core/core.ts` skip the build-time assignment:
+
+  ```ts
+  if (hasKey(field) && !isUndefined(field.defaultValue) &&
+      isUndefined(getFieldValue(field)) && !isHiddenField(field)) {
+    assignFieldValue(field, field.defaultValue);
+  }
+  ```
+
+- The only other place a `defaultValue` reaches the model is `changeHideState()` in
+  `src/core/src/lib/extensions/field-expression-legacy/field-expression.ts`, in its
+  `hide === false` arm. That runs on a **transition** of `field.hide`.
+
+On the first render `field.hide` goes from `undefined` to `false`, that is a transition, and the
+defaults land. On a rebuild with a new model reference the selected branch's `field.hide` is
+already `false`, there is no transition, and so no code path assigns the default at all.
+
+### Suggestion
+
+Either make `isHiddenField()` look at the evaluated hide state instead of the presence of an
+expression, so `CoreExtension` can assign the default for a branch that is visible, or re-apply
+`defaultValue` when a visible field's control is re-registered against a new model.
+
+---
+
+## Issue 2: switching branch changes the model but leaves the form pristine
+
+### Steps
+
+1. Select **File** in the `Output` selector.
+2. The model becomes `{ "name": "my-job", "output": { "rotateMb": 100 } }`, so the form no longer
+   holds what it loaded with.
+3. `form.dirty` is still `false`, and the `Discard` button, disabled on `form.pristine`, stays
+   disabled.
+
+### Expected
+
+A user-driven branch change is a user edit: `form.dirty` becomes `true`.
+
+### Actual
+
+`form.dirty` stays `false` for as long as the user only switches branches. Any Save / Discard /
+"unsaved changes" guard driven by the form's pristine state cannot see the change.
+
+Failing spec: `marks the form dirty when the user switches branch` in
+[`src/oneof.spec.ts`](src/oneof.spec.ts).
+
+### Why it happens
+
+The selector `resolveMultiSchema()` builds has no `key`:
+
+```ts
+{
+  type: 'enum',
+  defaultValue: -1,
+  props: { multiple: mode === 'anyOf', options: schemas.map(...) },
+  hooks: { onInit: (f) => f.formControl.valueChanges.pipe(tap(() => f.options.detectChanges(f.parent))) },
+}
+```
+
+`registerControl()` in `src/core/src/lib/utils.ts` returns early for a field without a key:
+
+```ts
+if (!field.form || !hasKey(field)) {
+  return;
+}
+```
+
+so the selector's control is never attached to the form. The `ControlValueAccessor` marks that
+detached control dirty on a real user selection, and the root form never hears about it.
+
+### Suggestion
+
+Have `resolveMultiSchema()` propagate the selection to the form's dirty state, for example a
+`props.change` on the selector that marks the root control dirty, so that a branch switch counts
+as the user edit it is.
+
+### Consumer workaround
+
+```ts
+selector.props.change = (field: FormlyFieldConfig): void => {
+  let root = field;
+  while (root.parent) {
+    root = root.parent;
+  }
+  root.formControl?.markAsDirty();
+};
+```
+
+---
+
+## Ruled out
+
+Both issues reproduce with a stock setup. In particular, issue 1 is not specific to a schema
+shape: the defaults are applied correctly on the first render for a property-level `oneOf`, a
+root-level `oneOf` alongside `properties`, `array.items.oneOf` with a row in the model, and a row
+added through the array's Add button, at one and at two levels of nesting. The trigger is only the
+`[model]` reference being replaced afterwards.

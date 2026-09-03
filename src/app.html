@@ -1,0 +1,106 @@
+<h1>ngx-formly 7.1.0: JSON Schema <code>oneOf</code> branch defaults and dirty state</h1>
+
+<p>
+  Two independent issues, both visible below. Nothing on this page is customised beyond the field
+  types the JSON Schema guide tells you to register.
+</p>
+
+<h2>Issue 1: a replaced <code>[model]</code> reference loses the selected branch's defaults</h2>
+<p>
+  This page renders the form with an empty model, then replaces the <code>[model]</code> reference
+  with a fresh empty record one tick later: what a host does when it renders before its data
+  arrives, and what any <code>ControlValueAccessor</code> wrapper does in
+  <code>writeValue</code>. Every default should be re-applied to the new record.
+  <code>name</code> is; the selected branch's <code>timeoutMs</code> is not.
+</p>
+
+<h2>Issue 2: switching branch changes the model but leaves the form pristine</h2>
+<p>
+  Switch <b>Output</b> between <b>HTTP</b> and <b>File</b>. The model changes, so
+  <b>Discard</b> should become available. It stays disabled, because the selector Formly builds
+  for the branches has no <code>key</code> and so is never attached to the form.
+  Switching also restores <code>timeoutMs</code>, which shows the code that applies branch
+  defaults works and simply never runs on a rebuild.
+</p>
+
+<h2>Form</h2>
+<form [formGroup]="form">
+  <formly-form [form]="form" [fields]="fields" [model]="model" />
+</form>
+<p>
+  <button type="button" [disabled]="form.pristine" (click)="discard()">Discard</button>
+  <span>
+    &nbsp;<code>form.pristine</code> = {{ form.pristine }}, <code>form.dirty</code> = {{ form.dirty }}
+  </span>
+</p>
+
+<h2>Result</h2>
+<div class="panel">
+  <table>
+    <tr>
+      <th>Check</th>
+      <th>Expected</th>
+      <th>Actual</th>
+      <th></th>
+    </tr>
+    <tr>
+      <td>Control: branch default <code>output.timeoutMs</code> on the first render</td>
+      <td><code>5000</code></td>
+      <td><code>{{ modelAtFirstRender.output?.timeoutMs | json }}</code></td>
+      <td>
+        @if (branchDefaultAppliedAtFirstRender) {
+          <span class="pass">PASS</span>
+        } @else {
+          <span class="fail">FAIL</span>
+        }
+      </td>
+    </tr>
+    <tr>
+      <td>Control: <code>name</code> default re-applied to the replaced model</td>
+      <td><code>"my-job"</code></td>
+      <td><code>{{ modelAfterModelReplaced?.name | json }}</code></td>
+      <td>
+        @if (plainDefaultReapplied) {
+          <span class="pass">PASS</span>
+        } @else {
+          <span class="fail">FAIL</span>
+        }
+      </td>
+    </tr>
+    <tr>
+      <td><b>Issue 1:</b> branch default <code>output.timeoutMs</code> re-applied to the replaced model</td>
+      <td><code>5000</code></td>
+      <td><code>{{ modelAfterModelReplaced?.output?.timeoutMs | json }}</code></td>
+      <td>
+        @if (branchDefaultReapplied) {
+          <span class="pass">PASS</span>
+        } @else {
+          <span class="fail">FAIL</span>
+        }
+      </td>
+    </tr>
+    <tr>
+      <td><b>Issue 2:</b> <code>form.dirty</code> once a branch switch has changed the model</td>
+      <td><code>true</code></td>
+      <td><code>{{ form.dirty }}</code></td>
+      <td>
+        @if (!modelChanged) {
+          <span class="pending">switch the Output selector to evaluate</span>
+        } @else if (dirtyTracksBranchSwitch) {
+          <span class="pass">PASS</span>
+        } @else {
+          <span class="fail">FAIL</span>
+        }
+      </td>
+    </tr>
+  </table>
+</div>
+
+<h2>Model at the first render</h2>
+<pre>{{ modelAtFirstRender | json }}</pre>
+
+<h2>Model after the reference was replaced</h2>
+<pre>{{ modelAfterModelReplaced | json }}</pre>
+
+<h2>Model now</h2>
+<pre>{{ modelJson }}</pre>

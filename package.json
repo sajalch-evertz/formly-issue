@@ -1,0 +1,32 @@
+{
+  "name": "ngx-formly-oneof-repro",
+  "version": "1.0.0",
+  "description": "Minimal reproduction: JSON Schema oneOf/anyOf branch defaults are not applied on first render, and switching branch does not dirty the form",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "start": "ng serve --port 4300",
+    "build": "ng build",
+    "test": "ng test"
+  },
+  "dependencies": {
+    "@angular/common": "20.3.27",
+    "@angular/compiler": "20.3.27",
+    "@angular/core": "20.3.27",
+    "@angular/forms": "20.3.27",
+    "@angular/platform-browser": "20.3.27",
+    "@ngx-formly/core": "7.1.0",
+    "rxjs": "7.8.1",
+    "tslib": "2.8.1",
+    "zone.js": "0.15.1"
+  },
+  "devDependencies": {
+    "@angular/build": "20.3.29",
+    "@angular/cli": "20.3.29",
+    "@angular/compiler-cli": "20.3.27",
+    "@types/json-schema": "7.0.15",
+    "jsdom": "^26.1.0",
+    "typescript": "5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
