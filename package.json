@@ -1,13 +1,12 @@
 {
   "name": "ngx-formly-oneof-repro",
   "version": "1.0.0",
-  "description": "Minimal reproduction: JSON Schema oneOf/anyOf branch defaults are not applied on first render, and switching branch does not dirty the form",
+  "description": "Minimal reproduction: a hide expression loses a field's JSON Schema default when the model reference is replaced, and switching a oneOf branch does not dirty the form",
   "private": true,
   "license": "MIT",
   "scripts": {
     "start": "ng serve --port 4300",
-    "build": "ng build",
-    "test": "ng test"
+    "build": "ng build"
   },
   "dependencies": {
     "@angular/common": "20.3.27",
@@ -26,8 +25,6 @@
     "@angular/cli": "20.3.29",
     "@angular/compiler-cli": "20.3.27",
     "@types/json-schema": "7.0.15",
-    "jsdom": "^26.1.0",
-    "typescript": "5.8.3",
-    "vitest": "^3.2.4"
+    "typescript": "5.8.3"
   }
 }

@@ -30,8 +30,7 @@ in [`src/field-types.ts`](src/field-types.ts): each one just renders its control
 
 ```bash
 npm install
-npm test     # 3 checks pass, 2 fail. The 2 failures are the two issues.
-npm start    # http://localhost:4300, the same thing in the browser with a PASS/FAIL panel
+npm start    # http://localhost:4300, a PASS/FAIL panel for both issues
 ```
 
 `src/main.ts` imports `@angular/compiler` before bootstrapping, so the app also runs in a sandbox
@@ -105,9 +104,6 @@ Every `default` in the schema is re-applied to the new record.
 
 Both branch inputs render empty. Switching the branch away and back restores both, which shows
 the code that applies the defaults works and simply never runs on a rebuild.
-
-Failing spec: `loses the branch defaults when the model reference is replaced` in
-[`src/issues.spec.ts`](src/issues.spec.ts).
 
 `url` and `timeoutMs` are lost for the same reason, and it is not `oneOf` specific: `url` has a
 `hide` expression of its own and `timeoutMs` only inherits the one
@@ -255,8 +251,6 @@ A user-driven branch change reaches the form's dirty state: `form.dirty` becomes
 
 `form.dirty` stays `false` for as long as the user only switches branches, so nothing driven by
 the form's pristine state can see the change.
-
-Failing spec: `marks the form dirty when the user switches branch`.
 
 ### Why it happens
 

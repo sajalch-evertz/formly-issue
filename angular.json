@@ -27,17 +27,6 @@
           "options": {
             "buildTarget": "repro:build"
           }
-        },
-        "test": {
-          "builder": "@angular/build:unit-test",
-          "options": {
-            "buildTarget": "repro:build",
-            "runner": "vitest",
-            "tsConfig": "tsconfig.json",
-            "include": [
-              "src/**/*.spec.ts"
-            ]
-          }
         }
       }
     }
