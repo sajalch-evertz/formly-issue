@@ -18,7 +18,8 @@ Minimal reproduction of three independent issues in the JSON Schema `oneOf` / `a
 | TypeScript | 5.8.3 |
 | Node | 22 |
 
-No UI theme package is involved. The only field types registered are the ones the
+No UI theme package is involved: `@ngx-formly/bootstrap` is not installed, and Bootstrap is here
+as a stylesheet and nothing else. The only field types registered are the ones the
 [JSON Schema guide](https://formly.dev/docs/guides/json-schema) says to register
 (`string`, `number`, `integer`, `boolean`, `enum`, `array`, `object`, `multischema`), and they are
 in [`src/field-types.ts`](src/field-types.ts): each one just renders its control or its
@@ -42,16 +43,24 @@ difference to `ng build` or `ng test`.
 {
   "type": "object",
   "properties": {
-    "name": { "type": "string", "default": "my-job" },   // control case, outside the oneOf
+    // control cases, outside the oneOf
+    "name":    { "type": "string",  "default": "my-job" },
+    "enabled": { "type": "boolean", "default": true },
+    "retries": { "type": "integer", "default": 3 },
+
     "output": {
+      "title": "Output",
       "oneOf": [
         { "title": "HTTP", "type": "object",
-          "properties": { "url": { "type": "string" },
+          "properties": { "url":       { "type": "string" },
+                          "method":    { "type": "string", "enum": ["POST", "PUT", "PATCH"],
+                                         "default": "POST" },
                           "timeoutMs": { "type": "integer", "default": 5000 } },
           "required": ["url"] },
         { "title": "File", "type": "object",
-          "properties": { "path": { "type": "string" },
-                          "rotateMb": { "type": "integer", "default": 100 } },
+          "properties": { "path":     { "type": "string" },
+                          "rotateMb": { "type": "integer", "default": 100 },
+                          "compress": { "type": "boolean", "default": true } },
           "required": ["path"] }
       ]
     }
@@ -68,7 +77,10 @@ difference to `ng build` or `ng test`.
 1. Render `<formly-form>` with an empty model. Everything is correct at this point:
 
    ```json
-   { "name": "my-job", "output": { "timeoutMs": 5000 } }
+   {
+     "name": "my-job", "enabled": true, "retries": 3,
+     "output": { "method": "POST", "timeoutMs": 5000 }
+   }
    ```
 
 2. Assign a **new** empty object to the `[model]` input. This is what a host does when it renders
@@ -78,21 +90,22 @@ difference to `ng build` or `ng test`.
 3. The model is now:
 
    ```json
-   { "name": "my-job" }
+   { "name": "my-job", "enabled": true, "retries": 3 }
    ```
 
 ### Expected
 
-Every `default` in the schema is re-applied to the new record, so `output.timeoutMs` is `5000`
-again. It is an empty record, exactly like the one the form started from.
+Every `default` in the schema is re-applied to the new record, `output.method` and
+`output.timeoutMs` included. It is an empty record, exactly like the one the form started from.
 
 ### Actual
 
-`name` is re-applied. The selected branch's `timeoutMs` is dropped, and the input renders empty.
-Switching the branch away and back restores it, which shows the code that applies branch defaults
-works and simply never runs on a rebuild.
+`name`, `enabled` and `retries` are re-applied. Every default inside the selected branch is
+dropped, whatever its type, and those inputs render empty. Switching the branch away and back
+restores them, which shows the code that applies branch defaults works and simply never runs on a
+rebuild.
 
-Failing spec: `re-applies the selected branch default to a replaced model` in
+Failing spec: `re-applies the selected branch defaults to a replaced model` in
 [`src/oneof.spec.ts`](src/oneof.spec.ts).
 
 ### Why it happens
@@ -139,8 +152,8 @@ expression, so `CoreExtension` can assign the default for a branch that is visib
 ### Steps
 
 1. Select **File** in the `Output` selector.
-2. The model becomes `{ "name": "my-job", "output": { "rotateMb": 100 } }`, so the form no longer
-   holds what it loaded with.
+2. The model becomes `{ ..., "output": { "rotateMb": 100, "compress": true } }`, so the form no
+   longer holds what it loaded with.
 3. `form.dirty` is still `false`.
 
 ### Expected

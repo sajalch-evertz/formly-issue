@@ -1,127 +1,159 @@
-<h1>ngx-formly 7.1.0: JSON Schema <code>oneOf</code> branch defaults and dirty state</h1>
+<div class="container py-4" style="max-width: 62rem">
+  <h1 class="h4">ngx-formly 7.1.0: JSON Schema <code>oneOf</code> branch defaults, dirty state and the selector</h1>
+  <p class="text-secondary">
+    Three independent issues, all visible below. Nothing on this page is customised beyond the
+    field types the JSON Schema guide tells you to register. Bootstrap is loaded as a stylesheet
+    only: <code>&#64;ngx-formly/bootstrap</code> is not installed.
+  </p>
 
-<p>
-  Three independent issues, all visible below. Nothing on this page is customised beyond the field
-  types the JSON Schema guide tells you to register.
-</p>
+  <div class="row g-4">
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-header fw-semibold">Form</div>
+        <div class="card-body">
+          <form [formGroup]="form">
+            <formly-form [form]="form" [fields]="fields" [model]="model" />
+          </form>
+          <hr />
+          <button type="button" class="btn btn-outline-secondary btn-sm" [disabled]="form.pristine" (click)="discard()">
+            Discard
+          </button>
+          <div class="small text-secondary mt-2">
+            <code>form.pristine</code> = {{ form.pristine }}, <code>form.dirty</code> = {{ form.dirty }}
+          </div>
+        </div>
+      </div>
+    </div>
 
-<h2>Issue 1: a replaced <code>[model]</code> reference loses the selected branch's defaults</h2>
-<p>
-  This page renders the form with an empty model, then replaces the <code>[model]</code> reference
-  with a fresh empty record one tick later: what a host does when it renders before its data
-  arrives, and what any <code>ControlValueAccessor</code> wrapper does in
-  <code>writeValue</code>. Every default should be re-applied to the new record.
-  <code>name</code> is; the selected branch's <code>timeoutMs</code> is not.
-</p>
+    <div class="col-lg-7">
+      <div class="card">
+        <div class="card-header fw-semibold">Result</div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 align-middle">
+            <thead>
+              <tr>
+                <th scope="col">Check</th>
+                <th scope="col">Expected</th>
+                <th scope="col">Actual</th>
+                <th scope="col"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Control: the branch defaults on the first render</td>
+                <td><code>POST</code>, <code>5000</code></td>
+                <td><code>{{ branchDefaultsAtFirstRender | json }}</code></td>
+                <td>
+                  @if (branchDefaultsAppliedAtFirstRender) {
+                    <span class="badge text-bg-success">PASS</span>
+                  } @else {
+                    <span class="badge text-bg-danger">FAIL</span>
+                  }
+                </td>
+              </tr>
+              <tr>
+                <td>Control: defaults outside the <code>oneOf</code>, re-applied to the replaced model</td>
+                <td><code>"my-job"</code>, <code>true</code>, <code>3</code></td>
+                <td><code>{{ plainDefaults | json }}</code></td>
+                <td>
+                  @if (plainDefaultsReapplied) {
+                    <span class="badge text-bg-success">PASS</span>
+                  } @else {
+                    <span class="badge text-bg-danger">FAIL</span>
+                  }
+                </td>
+              </tr>
+              <tr>
+                <td><b>Issue 1:</b> the branch defaults, re-applied to the replaced model</td>
+                <td><code>POST</code>, <code>5000</code></td>
+                <td><code>{{ branchDefaults | json }}</code></td>
+                <td>
+                  @if (branchDefaultsReapplied) {
+                    <span class="badge text-bg-success">PASS</span>
+                  } @else {
+                    <span class="badge text-bg-danger">FAIL</span>
+                  }
+                </td>
+              </tr>
+              <tr>
+                <td><b>Issue 2:</b> <code>form.dirty</code> once a branch switch has changed the model</td>
+                <td><code>true</code></td>
+                <td><code>{{ form.dirty }}</code></td>
+                <td>
+                  @if (!modelChanged) {
+                    <span class="badge text-bg-warning">switch the selector</span>
+                  } @else if (dirtyTracksBranchSwitch) {
+                    <span class="badge text-bg-success">PASS</span>
+                  } @else {
+                    <span class="badge text-bg-danger">FAIL</span>
+                  }
+                </td>
+              </tr>
+              <tr>
+                <td><b>Issue 3:</b> the branch selector carries the <code>oneOf</code> node's title</td>
+                <td><code>"Output"</code></td>
+                <td><code>{{ selectorLabel | json }}</code></td>
+                <td>
+                  @if (selectorLabelled) {
+                    <span class="badge text-bg-success">PASS</span>
+                  } @else {
+                    <span class="badge text-bg-danger">FAIL</span>
+                  }
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-<h2>Issue 2: switching branch changes the model but leaves the form pristine</h2>
-<p>
-  Switch the branch selector between <b>HTTP</b> and <b>File</b>. The model changes, and
-  <code>form.dirty</code> stays <code>false</code>, because the selector Formly builds for the
-  branches has no <code>key</code> and so is never attached to the form. Switching also restores
-  <code>timeoutMs</code>, which shows the code that applies branch defaults works and simply
-  never runs on a rebuild.
-</p>
+      <div class="row g-3 mt-1">
+        <div class="col-md-4">
+          <div class="card h-100">
+            <div class="card-header small fw-semibold">At the first render</div>
+            <pre class="card-body mb-0 small">{{ modelAtFirstRender | json }}</pre>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card h-100">
+            <div class="card-header small fw-semibold">After the reference was replaced</div>
+            <pre class="card-body mb-0 small">{{ modelAfterModelReplaced | json }}</pre>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card h-100">
+            <div class="card-header small fw-semibold">Now</div>
+            <pre class="card-body mb-0 small">{{ modelJson }}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<h2>Issue 3: the branch selector carries no label and no supported way to give it one</h2>
-<p>
-  The <code>oneOf</code> node's <code>"title": "Output"</code> never reaches the selector, which
-  renders with whatever fallback text the field type hardcodes (<code>Select</code>, here).
-  The selector has no <code>key</code> and is the one field
-  <code>toFieldConfig</code>'s <code>map</code> callback is never called for, so there is no
-  supported way to label, translate or otherwise configure the choice the user is making.
-</p>
+  <h2 class="h6 mt-4">Issue 1: a replaced <code>[model]</code> reference loses the selected branch's defaults</h2>
+  <p class="text-secondary">
+    This page renders the form with an empty model, then replaces the <code>[model]</code>
+    reference with a fresh empty record one tick later: what a host does when it renders before
+    its data arrives, and what any <code>ControlValueAccessor</code> wrapper does in
+    <code>writeValue</code>. Every default should be re-applied to the new record.
+    <code>name</code>, <code>enabled</code> and <code>retries</code> are; the selected branch's
+    <code>method</code> and <code>timeoutMs</code> are not.
+  </p>
 
-<h2>Form</h2>
-<form [formGroup]="form">
-  <formly-form [form]="form" [fields]="fields" [model]="model" />
-</form>
-<p>
-  <button type="button" [disabled]="form.pristine" (click)="discard()">Discard</button>
-  <span>
-    &nbsp;<code>form.pristine</code> = {{ form.pristine }}, <code>form.dirty</code> = {{ form.dirty }}
-  </span>
-</p>
+  <h2 class="h6">Issue 2: switching branch changes the model but leaves the form pristine</h2>
+  <p class="text-secondary">
+    Switch the branch selector between <b>HTTP</b> and <b>File</b>. The model changes, and
+    <code>form.dirty</code> stays <code>false</code>, because the selector Formly builds for the
+    branches has no <code>key</code> and so is never attached to the form. Switching also restores
+    the branch defaults, which shows the code that applies them works and simply never runs on a
+    rebuild.
+  </p>
 
-<h2>Result</h2>
-<div class="panel">
-  <table>
-    <tr>
-      <th>Check</th>
-      <th>Expected</th>
-      <th>Actual</th>
-      <th></th>
-    </tr>
-    <tr>
-      <td>Control: branch default <code>output.timeoutMs</code> on the first render</td>
-      <td><code>5000</code></td>
-      <td><code>{{ modelAtFirstRender.output?.timeoutMs | json }}</code></td>
-      <td>
-        @if (branchDefaultAppliedAtFirstRender) {
-          <span class="pass">PASS</span>
-        } @else {
-          <span class="fail">FAIL</span>
-        }
-      </td>
-    </tr>
-    <tr>
-      <td>Control: <code>name</code> default re-applied to the replaced model</td>
-      <td><code>"my-job"</code></td>
-      <td><code>{{ modelAfterModelReplaced?.name | json }}</code></td>
-      <td>
-        @if (plainDefaultReapplied) {
-          <span class="pass">PASS</span>
-        } @else {
-          <span class="fail">FAIL</span>
-        }
-      </td>
-    </tr>
-    <tr>
-      <td><b>Issue 1:</b> branch default <code>output.timeoutMs</code> re-applied to the replaced model</td>
-      <td><code>5000</code></td>
-      <td><code>{{ modelAfterModelReplaced?.output?.timeoutMs | json }}</code></td>
-      <td>
-        @if (branchDefaultReapplied) {
-          <span class="pass">PASS</span>
-        } @else {
-          <span class="fail">FAIL</span>
-        }
-      </td>
-    </tr>
-    <tr>
-      <td><b>Issue 2:</b> <code>form.dirty</code> once a branch switch has changed the model</td>
-      <td><code>true</code></td>
-      <td><code>{{ form.dirty }}</code></td>
-      <td>
-        @if (!modelChanged) {
-          <span class="pending">switch the Output selector to evaluate</span>
-        } @else if (dirtyTracksBranchSwitch) {
-          <span class="pass">PASS</span>
-        } @else {
-          <span class="fail">FAIL</span>
-        }
-      </td>
-    </tr>
-    <tr>
-      <td><b>Issue 3:</b> the branch selector carries the <code>oneOf</code> node's title</td>
-      <td><code>"Output"</code></td>
-      <td><code>{{ selectorLabel | json }}</code></td>
-      <td>
-        @if (selectorLabelled) {
-          <span class="pass">PASS</span>
-        } @else {
-          <span class="fail">FAIL</span>
-        }
-      </td>
-    </tr>
-  </table>
+  <h2 class="h6">Issue 3: the branch selector carries no label and no supported way to give it one</h2>
+  <p class="text-secondary">
+    The <code>oneOf</code> node's <code>"title": "Output"</code> never reaches the selector, which
+    renders with whatever fallback text the field type hardcodes (<code>Select</code>, here). The
+    selector has no <code>key</code> and is the one field <code>toFieldConfig</code>'s
+    <code>map</code> callback is never called for, so there is no supported way to label,
+    translate or otherwise configure the choice the user is making.
+  </p>
 </div>
-
-<h2>Model at the first render</h2>
-<pre>{{ modelAtFirstRender | json }}</pre>
-
-<h2>Model after the reference was replaced</h2>
-<pre>{{ modelAfterModelReplaced | json }}</pre>
-
-<h2>Model now</h2>
-<pre>{{ modelJson }}</pre>

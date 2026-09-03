@@ -10,42 +10,60 @@ import {
 } from '@ngx-formly/core';
 
 /**
- * The three field types below are the stock ones from the ngx-formly JSON Schema docs
- * (https://formly.dev/docs/guides/json-schema). Nothing here is customised: the point of the
- * repro is that the bug lives in `@ngx-formly/core` + `@ngx-formly/core/json-schema`, not in a
- * UI theme package or in a hand-rolled renderer.
+ * The field types below are the stock ones from the ngx-formly JSON Schema docs
+ * (https://formly.dev/docs/guides/json-schema), with the same Bootstrap classes those examples
+ * use. Nothing here is customised: the point of the repro is that the bugs live in
+ * `@ngx-formly/core` + `@ngx-formly/core/json-schema`, not in a UI theme package or in a
+ * hand-rolled renderer. `@ngx-formly/bootstrap` is deliberately not installed; Bootstrap is here
+ * as a stylesheet and nothing else.
  */
 
 @Component({
   selector: 'formly-field-input',
   imports: [ReactiveFormsModule, FormlyAttributes],
   template: `
-    <label class="row">
-      <span class="label">{{ props.label }}</span>
-      <input [type]="props.type || 'text'" [formControl]="formControl" [formlyAttributes]="field" />
-    </label>
+    @if (props.type === 'checkbox') {
+      <div class="form-check">
+        <input
+          type="checkbox"
+          class="form-check-input"
+          [id]="id"
+          [formControl]="formControl"
+          [formlyAttributes]="field"
+        />
+        <label class="form-check-label" [for]="id">{{ props.label }}</label>
+      </div>
+    } @else {
+      <label class="form-label" [for]="id">{{ props.label }}</label>
+      <input
+        class="form-control"
+        [id]="id"
+        [type]="props.type || 'text'"
+        [formControl]="formControl"
+        [formlyAttributes]="field"
+      />
+    }
   `,
 })
 export class InputTypeComponent extends FieldType<FieldTypeConfig> {}
 
-/** `type: 'enum'` is what the JSON Schema service emits for the oneOf/anyOf branch selector. */
+/** `type: 'enum'` is what the JSON Schema service emits for a schema enum and for the
+ * oneOf/anyOf branch selector. */
 @Component({
   selector: 'formly-field-enum',
   imports: [ReactiveFormsModule],
   template: `
-    <label class="row">
-      <span class="label">{{ props.label || 'Select' }}</span>
-      <select [formControl]="formControl" [multiple]="!!props.multiple">
-        @for (option of selectOptions; track option.value) {
-          <option [ngValue]="option.value" [disabled]="!!option.disabled">{{ option.label }}</option>
-        }
-      </select>
-    </label>
+    <label class="form-label" [for]="id">{{ props.label || 'Select' }}</label>
+    <select class="form-select" [id]="id" [formControl]="formControl" [multiple]="!!props.multiple">
+      @for (option of selectOptions; track option.value) {
+        <option [ngValue]="option.value" [disabled]="!!option.disabled">{{ option.label }}</option>
+      }
+    </select>
   `,
 })
 export class EnumTypeComponent extends FieldType<FieldTypeConfig> {
-  get selectOptions(): { label: string; value: number; disabled?: boolean }[] {
-    return (this.props.options ?? []) as { label: string; value: number; disabled?: boolean }[];
+  get selectOptions(): { label: string; value: string | number; disabled?: boolean }[] {
+    return (this.props.options ?? []) as { label: string; value: string | number; disabled?: boolean }[];
   }
 }
 
@@ -57,20 +75,22 @@ export class EnumTypeComponent extends FieldType<FieldTypeConfig> {
   selector: 'formly-group-type',
   imports: [FormlyField, FormlyValidationMessage],
   template: `
-    <fieldset>
-      @if (props.label) {
-        <legend>{{ props.label }}</legend>
-      }
-      @if (props.description) {
-        <p>{{ props.description }}</p>
-      }
-      @if (showError && formControl.errors) {
-        <div class="error"><formly-validation-message [field]="field" /></div>
-      }
-      @for (f of field.fieldGroup; track $index) {
+    @if (props.label) {
+      <legend class="fs-6 fw-semibold">{{ props.label }}</legend>
+    }
+    @if (props.description) {
+      <p class="text-secondary small">{{ props.description }}</p>
+    }
+    @if (showError && formControl.errors) {
+      <div class="alert alert-danger py-1 px-2 small">
+        <formly-validation-message [field]="field" />
+      </div>
+    }
+    @for (f of field.fieldGroup; track $index) {
+      <div class="mb-3">
         <formly-field [field]="f" />
-      }
-    </fieldset>
+      </div>
+    }
   `,
 })
 export class GroupTypeComponent extends FieldType {}
@@ -82,15 +102,17 @@ export class GroupTypeComponent extends FieldType {}
   template: `
     <fieldset>
       @if (props.label) {
-        <legend>{{ props.label }}</legend>
+        <legend class="fs-6 fw-semibold">{{ props.label }}</legend>
       }
       @for (f of field.fieldGroup; track $index) {
-        <div class="row">
-          <formly-field [field]="f" />
-          <button type="button" (click)="remove($index)">Remove</button>
+        <div class="d-flex gap-2 align-items-end mb-2">
+          <div class="flex-grow-1"><formly-field [field]="f" /></div>
+          <button type="button" class="btn btn-outline-secondary btn-sm" (click)="remove($index)">
+            Remove
+          </button>
         </div>
       }
-      <button type="button" (click)="add()">Add</button>
+      <button type="button" class="btn btn-outline-primary btn-sm" (click)="add()">Add</button>
     </fieldset>
   `,
 })
