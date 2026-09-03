@@ -8,11 +8,11 @@ import { FORMLY_CONFIG } from './formly-config';
 
 /**
  * The two failing expectations are the bug report:
- *   - "re-applies the selected branch default to a replaced model"
+ *   - "loses the branch defaults when the model reference is replaced"
  *   - "marks the form dirty when the user switches branch"
  * The other three pass and rule out a broken setup.
  */
-describe('ngx-formly 7.1.0 JSON Schema oneOf', () => {
+describe('ngx-formly 7.1.0', () => {
   let fixture: ComponentFixture<AppComponent>;
 
   const settle = async (): Promise<void> => {
@@ -29,49 +29,43 @@ describe('ngx-formly 7.1.0 JSON Schema oneOf', () => {
     await settle();
   });
 
-  /** The branch selector, found by its options rather than by position. */
-  const branchSelect = (): HTMLSelectElement => {
-    const selects = Array.from<HTMLSelectElement>(fixture.nativeElement.querySelectorAll('select'));
-    const select = selects.find(el =>
-      Array.from(el.options).some(option => option.textContent?.trim() === 'HTTP'),
-    );
-    if (!select) {
-      throw new Error('branch selector not found');
-    }
-    return select;
-  };
-
-  /** Drives the real `<select>`, so the ControlValueAccessor marks its own control dirty. */
+  /** Drives the real `<select>`, the only one on the page, so the CVA marks its control dirty. */
   const selectBranch = (index: number): void => {
-    const select = branchSelect();
+    const select: HTMLSelectElement = fixture.nativeElement.querySelector('select');
     select.selectedIndex = index;
     select.dispatchEvent(new Event('change'));
     fixture.detectChanges();
   };
 
-  it('applies the selected branch default on the first render', () => {
-    expect(fixture.componentInstance.modelAtFirstRender.output?.timeoutMs).toBe(5000);
+  /** `url` carries its own `hide` expression, `timeoutMs` only inherits the branch's. */
+  const HTTP_DEFAULTS = { url: 'https://example.test/ingest', timeoutMs: 5000 };
+
+  it('applies the selected branch defaults on the first render', () => {
+    expect(fixture.componentInstance.modelAtFirstRender.output).toMatchObject(HTTP_DEFAULTS);
   });
 
-  it('re-applies a default declared outside the oneOf to a replaced model', () => {
+  it('re-applies the default outside the oneOf to a replaced model', () => {
     expect(fixture.componentInstance.modelAfterModelReplaced?.name).toBe('my-job');
   });
 
-  it('re-applies the selected branch default to a replaced model', () => {
-    expect(fixture.componentInstance.modelAfterModelReplaced?.output?.timeoutMs).toBe(5000);
+  it('loses the branch defaults when the model reference is replaced', () => {
+    expect(fixture.componentInstance.modelAfterModelReplaced?.output).toMatchObject(HTTP_DEFAULTS);
   });
 
-  it('re-applies the branch default once the branch is hidden and shown again', async () => {
+  it('re-applies the branch defaults once the branch is hidden and shown again', async () => {
     selectBranch(1);
     selectBranch(0);
     await settle();
-    expect(fixture.componentInstance.model.output?.timeoutMs).toBe(5000);
+    expect(fixture.componentInstance.model.output).toMatchObject(HTTP_DEFAULTS);
   });
 
   it('marks the form dirty when the user switches branch', () => {
     selectBranch(1);
     // The switch did change the model, so the form no longer holds what it loaded with.
-    expect(fixture.componentInstance.model.output?.rotateMb).toBe(100);
+    expect(fixture.componentInstance.model.output).toMatchObject({
+      path: '/var/log/job.log',
+      rotateMb: 100,
+    });
     expect(fixture.componentInstance.form.dirty).toBe(true);
   });
 });

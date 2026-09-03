@@ -9,6 +9,8 @@ import {
 
 /** Shared by the app bootstrap and the spec so the two can never drift apart. */
 export const FORMLY_CONFIG: ConfigOption = {
+  // Formly's default, stated here so the repro's premise is explicit rather than implied.
+  extras: { resetFieldOnHide: true },
   types: [
     { name: 'string', component: InputTypeComponent },
     { name: 'number', component: InputTypeComponent, defaultOptions: { props: { type: 'number' } } },

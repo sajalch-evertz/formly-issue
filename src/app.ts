@@ -1,41 +1,61 @@
 import { JsonPipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
-import type { FormlyFieldConfig } from '@ngx-formly/core';
+import type { FormlyFieldConfig, FormlyFormOptions } from '@ngx-formly/core';
 import { FormlyForm } from '@ngx-formly/core';
 import { FormlyJsonschema } from '@ngx-formly/core/json-schema';
 import type { JSONSchema7 } from 'json-schema';
 
 /**
- * `output` is a plain `oneOf`. Each branch declares a `default` for one of its own properties, as
- * JSON Schema allows. `name` sits outside the `oneOf` and is the control case: it proves the
- * default plumbing works, so any difference between it and the branch properties is the bug.
+ * `widget.formlyConfig` is Formly's schema extension for attaching field config to a property.
+ * `JSONSchema7` does not describe it, and `toFieldConfig` takes a plain `JSONSchema7`, so declare
+ * the shape rather than casting the literal.
  */
-const SCHEMA: JSONSchema7 = {
+type FormlySchema = JSONSchema7 & {
+  widget?: { formlyConfig?: FormlyFieldConfig };
+  properties?: Record<string, FormlySchema>;
+  oneOf?: FormlySchema[];
+};
+
+/**
+ * Every property in a branch declares a `default`. `url` and `path` additionally carry a `hide`
+ * expression gated on an access flag, the everyday reason a field has one; `formState.isAdmin` is
+ * `true`, so they are visible the whole time. `name` sits outside the `oneOf` with no `hide`
+ * expression and is the control: it proves the default plumbing works, so any difference between
+ * it and the branch properties is the bug.
+ */
+const SCHEMA: FormlySchema = {
   type: 'object',
   title: 'Job',
   properties: {
     name: { type: 'string', title: 'Name', default: 'my-job' },
     output: {
-      title: 'Output',
       oneOf: [
         {
           title: 'HTTP',
           type: 'object',
           properties: {
-            url: { type: 'string', title: 'URL' },
+            url: {
+              type: 'string',
+              title: 'URL (admin only)',
+              default: 'https://example.test/ingest',
+              widget: { formlyConfig: { expressions: { hide: '!formState.isAdmin' } } },
+            },
             timeoutMs: { type: 'integer', title: 'Timeout (ms)', default: 5000 },
           },
-          required: ['url'],
         },
         {
           title: 'File',
           type: 'object',
           properties: {
-            path: { type: 'string', title: 'Path' },
+            path: {
+              type: 'string',
+              title: 'Path (admin only)',
+              default: '/var/log/job.log',
+              widget: { formlyConfig: { expressions: { hide: '!formState.isAdmin' } } },
+            },
             rotateMb: { type: 'integer', title: 'Rotate (MB)', default: 100 },
           },
-          required: ['path'],
         },
       ],
     },
@@ -56,6 +76,8 @@ export interface JobModel {
 export class AppComponent {
   readonly form = new FormGroup({});
   readonly fields: FormlyFieldConfig[] = [inject(FormlyJsonschema).toFieldConfig(SCHEMA)];
+  /** `isAdmin` is true, so the gated fields are visible throughout. */
+  readonly options: FormlyFormOptions = { formState: { isAdmin: true } };
 
   /** Not readonly: a host that loads its record asynchronously hands Formly a new object. */
   model: JobModel = {};
@@ -64,8 +86,6 @@ export class AppComponent {
   modelAtFirstRender: JobModel = {};
   /** The model after the reference was replaced with an empty record. */
   modelAfterModelReplaced: JobModel | null = null;
-
-  private modelJsonAfterReplace = '';
 
   constructor() {
     // One macrotask after bootstrap: built, expressions run, nothing touched by a user.
@@ -82,37 +102,33 @@ export class AppComponent {
    */
   replaceModel(): void {
     this.model = {};
-    setTimeout(() => {
-      this.modelAfterModelReplaced = structuredClone(this.model);
-      this.modelJsonAfterReplace = JSON.stringify(this.model);
-    });
+    setTimeout(() => (this.modelAfterModelReplaced = structuredClone(this.model)));
   }
 
-  /** Control case: a default outside the `oneOf` is re-applied to the new model. */
+  /** Control case: the default outside the `oneOf` is re-applied to the new model. */
   get plainDefaultReapplied(): boolean {
     return this.modelAfterModelReplaced?.name === 'my-job';
   }
 
-  /** Issue 1: the selected branch's default is not re-applied to the new model. */
-  get branchDefaultReapplied(): boolean {
-    return this.modelAfterModelReplaced?.output?.timeoutMs === 5000;
+  get branchDefaultsAppliedAtFirstRender(): boolean {
+    const output = this.modelAtFirstRender.output;
+    return output?.url === 'https://example.test/ingest' && output?.timeoutMs === 5000;
   }
 
-  get branchDefaultAppliedAtFirstRender(): boolean {
-    return this.modelAtFirstRender.output?.timeoutMs === 5000;
+  /** Issue 1: neither the gated field nor its sibling gets its default back. */
+  get branchDefaultsReapplied(): boolean {
+    const output = this.modelAfterModelReplaced?.output;
+    return output?.url === 'https://example.test/ingest' && output?.timeoutMs === 5000;
   }
 
   get modelChanged(): boolean {
-    return this.modelJsonAfterReplace !== '' && JSON.stringify(this.model) !== this.modelJsonAfterReplace;
+    const replaced = this.modelAfterModelReplaced;
+    return replaced !== null && JSON.stringify(this.model) !== JSON.stringify(replaced);
   }
 
   /** Issue 2: the model changed, and the form is still pristine. */
   get dirtyTracksBranchSwitch(): boolean {
     return !this.modelChanged || this.form.dirty;
-  }
-
-  get modelJson(): string {
-    return JSON.stringify(this.model, null, 2);
   }
 
   discard(): void {

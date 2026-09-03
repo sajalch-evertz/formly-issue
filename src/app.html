@@ -1,9 +1,18 @@
-<div class="container py-4" style="max-width: 62rem">
-  <h1 class="h4">ngx-formly 7.1.0: JSON Schema <code>oneOf</code> branch defaults and dirty state</h1>
+<div class="container-xxl py-4">
+  <h1 class="h4">ngx-formly 7.1.0: a <code>hide</code> expression loses a field's <code>default</code></h1>
   <p class="text-secondary">
-    Two independent issues, both visible below. Nothing on this page is customised beyond the
-    field types the JSON Schema guide tells you to register. Bootstrap is loaded as a stylesheet
-    only: <code>&#64;ngx-formly/bootstrap</code> is not installed.
+    Two issues. The first is not about schema composition: <b>any</b> field whose self or ancestor
+    carries a <code>hide</code> expression loses its schema <code>default</code> when the
+    <code>[model]</code> reference is replaced, even while the field is visible. Every
+    <code>oneOf</code> form is affected without opting in, because
+    <code>resolveMultiSchema()</code> puts a <code>hide</code> expression on every branch.
+    <code>URL</code> and <code>Path</code> below additionally carry one of their own,
+    <code>"hide": "!formState.isAdmin"</code> with <code>isAdmin: true</code>, so they are visible
+    the whole time. <code>Name</code> has none and is the control.
+  </p>
+  <p class="text-secondary">
+    Nothing here is customised beyond the field types the JSON Schema guide tells you to register,
+    and Bootstrap is a stylesheet only: <code>&#64;ngx-formly/bootstrap</code> is not installed.
   </p>
 
   <div class="row g-4">
@@ -12,10 +21,10 @@
         <div class="card-header fw-semibold">Form</div>
         <div class="card-body">
           <form [formGroup]="form">
-            <formly-form [form]="form" [fields]="fields" [model]="model" />
+            <formly-form [form]="form" [fields]="fields" [model]="model" [options]="options" />
           </form>
           <hr />
-          <button type="button" class="btn btn-outline-secondary btn-sm" [disabled]="form.pristine" (click)="discard()">
+          <button type="button" class="btn btn-primary btn-sm" [disabled]="form.pristine" (click)="discard()">
             Discard
           </button>
           <div class="small text-secondary mt-2">
@@ -40,11 +49,11 @@
             </thead>
             <tbody>
               <tr>
-                <td>Control: the branch default <code>output.timeoutMs</code> on the first render</td>
-                <td><code>5000</code></td>
-                <td><code>{{ modelAtFirstRender.output?.timeoutMs | json }}</code></td>
+                <td>Control: the branch defaults on the first render</td>
+                <td>both present</td>
+                <td><code>{{ modelAtFirstRender.output | json }}</code></td>
                 <td>
-                  @if (branchDefaultAppliedAtFirstRender) {
+                  @if (branchDefaultsAppliedAtFirstRender) {
                     <span class="badge text-bg-success">PASS</span>
                   } @else {
                     <span class="badge text-bg-danger">FAIL</span>
@@ -52,7 +61,7 @@
                 </td>
               </tr>
               <tr>
-                <td>Control: <code>name</code> default re-applied to the replaced model</td>
+                <td>Control: <code>name</code>, no <code>hide</code> expression, re-applied to the replaced model</td>
                 <td><code>"my-job"</code></td>
                 <td><code>{{ modelAfterModelReplaced?.name | json }}</code></td>
                 <td>
@@ -64,11 +73,11 @@
                 </td>
               </tr>
               <tr>
-                <td><b>Issue 1:</b> branch default <code>output.timeoutMs</code> re-applied to the replaced model</td>
-                <td><code>5000</code></td>
-                <td><code>{{ modelAfterModelReplaced?.output?.timeoutMs | json }}</code></td>
+                <td><b>Issue 1:</b> the branch defaults, re-applied to the replaced model</td>
+                <td>both present</td>
+                <td><code>{{ modelAfterModelReplaced?.output | json }}</code></td>
                 <td>
-                  @if (branchDefaultReapplied) {
+                  @if (branchDefaultsReapplied) {
                     <span class="badge text-bg-success">PASS</span>
                   } @else {
                     <span class="badge text-bg-danger">FAIL</span>
@@ -110,20 +119,20 @@
         <div class="col-md-4">
           <div class="card h-100">
             <div class="card-header small fw-semibold">Now</div>
-            <pre class="card-body mb-0 small">{{ modelJson }}</pre>
+            <pre class="card-body mb-0 small">{{ model | json }}</pre>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <h2 class="h6 mt-4">Issue 1: a replaced <code>[model]</code> reference loses the selected branch's defaults</h2>
+  <h2 class="h6 mt-4">Issue 1: a replaced <code>[model]</code> reference loses the branch's defaults</h2>
   <p class="text-secondary">
     This page renders the form with an empty model, then replaces the <code>[model]</code>
     reference with a fresh empty record one tick later: what a host does when it renders before
     its data arrives, and what any <code>ControlValueAccessor</code> wrapper does in
     <code>writeValue</code>. Every default should be re-applied to the new record.
-    <code>name</code> is; the selected branch's <code>timeoutMs</code> is not.
+    <code>name</code> is; nothing inside the branch is, the gated <code>URL</code> included.
   </p>
 
   <h2 class="h6">Issue 2: switching branch changes the model but leaves the form pristine</h2>
@@ -131,8 +140,7 @@
     Switch the branch selector between <b>HTTP</b> and <b>File</b>. The model changes, and
     <code>form.dirty</code> stays <code>false</code>, because the selector Formly builds for the
     branches has no <code>key</code> and so is never attached to the form. Switching also restores
-    <code>timeoutMs</code>, which shows the code that applies branch defaults works and simply
-    never runs on a rebuild.
+    the branch defaults, which shows the code that applies them works and simply never runs on a
+    rebuild.
   </p>
-
 </div>

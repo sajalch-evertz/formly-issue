@@ -1,8 +1,4 @@
 /* Bootstrap covers the rest. */
-:host {
-  display: block;
-}
-
 legend {
   margin-bottom: 0.25rem;
 }
