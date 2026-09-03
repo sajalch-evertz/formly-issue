@@ -22,27 +22,14 @@ import {
   selector: 'formly-field-input',
   imports: [ReactiveFormsModule, FormlyAttributes],
   template: `
-    @if (props.type === 'checkbox') {
-      <div class="form-check">
-        <input
-          type="checkbox"
-          class="form-check-input"
-          [id]="id"
-          [formControl]="formControl"
-          [formlyAttributes]="field"
-        />
-        <label class="form-check-label" [for]="id">{{ props.label }}</label>
-      </div>
-    } @else {
-      <label class="form-label" [for]="id">{{ props.label }}</label>
-      <input
-        class="form-control"
-        [id]="id"
-        [type]="props.type || 'text'"
-        [formControl]="formControl"
-        [formlyAttributes]="field"
-      />
-    }
+    <label class="form-label" [for]="id">{{ props.label }}</label>
+    <input
+      class="form-control"
+      [id]="id"
+      [type]="props.type || 'text'"
+      [formControl]="formControl"
+      [formlyAttributes]="field"
+    />
   `,
 })
 export class InputTypeComponent extends FieldType<FieldTypeConfig> {}

@@ -42,24 +42,17 @@ difference to `ng build` or `ng test`.
 {
   "type": "object",
   "properties": {
-    // control cases, outside the oneOf
-    "name":    { "type": "string",  "default": "my-job" },
-    "enabled": { "type": "boolean", "default": true },
-    "retries": { "type": "integer", "default": 3 },
-
+    "name": { "type": "string", "default": "my-job" },   // control case, outside the oneOf
     "output": {
       "title": "Output",
       "oneOf": [
         { "title": "HTTP", "type": "object",
           "properties": { "url":       { "type": "string" },
-                          "method":    { "type": "string", "enum": ["POST", "PUT", "PATCH"],
-                                         "default": "POST" },
                           "timeoutMs": { "type": "integer", "default": 5000 } },
           "required": ["url"] },
         { "title": "File", "type": "object",
           "properties": { "path":     { "type": "string" },
-                          "rotateMb": { "type": "integer", "default": 100 },
-                          "compress": { "type": "boolean", "default": true } },
+                          "rotateMb": { "type": "integer", "default": 100 } },
           "required": ["path"] }
       ]
     }
@@ -76,10 +69,7 @@ difference to `ng build` or `ng test`.
 1. Render `<formly-form>` with an empty model. Everything is correct at this point:
 
    ```json
-   {
-     "name": "my-job", "enabled": true, "retries": 3,
-     "output": { "method": "POST", "timeoutMs": 5000 }
-   }
+   { "name": "my-job", "output": { "timeoutMs": 5000 } }
    ```
 
 2. Assign a **new** empty object to the `[model]` input. This is what a host does when it renders
@@ -89,22 +79,21 @@ difference to `ng build` or `ng test`.
 3. The model is now:
 
    ```json
-   { "name": "my-job", "enabled": true, "retries": 3 }
+   { "name": "my-job" }
    ```
 
 ### Expected
 
-Every `default` in the schema is re-applied to the new record, `output.method` and
-`output.timeoutMs` included. It is an empty record, exactly like the one the form started from.
+Every `default` in the schema is re-applied to the new record, so `output.timeoutMs` is `5000`
+again. It is an empty record, exactly like the one the form started from.
 
 ### Actual
 
-`name`, `enabled` and `retries` are re-applied. Every default inside the selected branch is
-dropped, whatever its type, and those inputs render empty. Switching the branch away and back
-restores them, which shows the code that applies branch defaults works and simply never runs on a
-rebuild.
+`name` is re-applied. The selected branch's `timeoutMs` is dropped, and the input renders empty.
+Switching the branch away and back restores it, which shows the code that applies branch defaults
+works and simply never runs on a rebuild.
 
-Failing spec: `re-applies the selected branch defaults to a replaced model` in
+Failing spec: `re-applies the selected branch default to a replaced model` in
 [`src/oneof.spec.ts`](src/oneof.spec.ts).
 
 ### Why it happens
@@ -151,8 +140,8 @@ expression, so `CoreExtension` can assign the default for a branch that is visib
 ### Steps
 
 1. Select **File** in the `Output` selector.
-2. The model becomes `{ ..., "output": { "rotateMb": 100, "compress": true } }`, so the form no
-   longer holds what it loaded with.
+2. The model becomes `{ "name": "my-job", "output": { "rotateMb": 100 } }`, so the form no longer
+   holds what it loaded with.
 3. `form.dirty` is still `false`.
 
 ### Expected

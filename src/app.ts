@@ -7,18 +7,15 @@ import { FormlyJsonschema } from '@ngx-formly/core/json-schema';
 import type { JSONSchema7 } from 'json-schema';
 
 /**
- * `output` is a plain `oneOf`. Each branch declares `default`s for its own properties, as JSON
- * Schema allows. `name`, `enabled` and `retries` sit outside the `oneOf` and are the control
- * case: they prove the default plumbing works, so any difference between them and the branch
- * properties is the bug.
+ * `output` is a plain `oneOf`. Each branch declares a `default` for one of its own properties, as
+ * JSON Schema allows. `name` sits outside the `oneOf` and is the control case: it proves the
+ * default plumbing works, so any difference between it and the branch properties is the bug.
  */
 const SCHEMA: JSONSchema7 = {
   type: 'object',
   title: 'Job',
   properties: {
     name: { type: 'string', title: 'Name', default: 'my-job' },
-    enabled: { type: 'boolean', title: 'Enabled', default: true },
-    retries: { type: 'integer', title: 'Retries', default: 3 },
     output: {
       title: 'Output',
       oneOf: [
@@ -27,7 +24,6 @@ const SCHEMA: JSONSchema7 = {
           type: 'object',
           properties: {
             url: { type: 'string', title: 'URL' },
-            method: { type: 'string', title: 'Method', enum: ['POST', 'PUT', 'PATCH'], default: 'POST' },
             timeoutMs: { type: 'integer', title: 'Timeout (ms)', default: 5000 },
           },
           required: ['url'],
@@ -38,7 +34,6 @@ const SCHEMA: JSONSchema7 = {
           properties: {
             path: { type: 'string', title: 'Path' },
             rotateMb: { type: 'integer', title: 'Rotate (MB)', default: 100 },
-            compress: { type: 'boolean', title: 'Compress', default: true },
           },
           required: ['path'],
         },
@@ -49,16 +44,7 @@ const SCHEMA: JSONSchema7 = {
 
 export interface JobModel {
   name?: string;
-  enabled?: boolean;
-  retries?: number;
-  output?: {
-    url?: string;
-    method?: string;
-    timeoutMs?: number;
-    path?: string;
-    rotateMb?: number;
-    compress?: boolean;
-  };
+  output?: { url?: string; timeoutMs?: number; path?: string; rotateMb?: number };
 }
 
 @Component({
@@ -102,36 +88,18 @@ export class AppComponent {
     });
   }
 
-  /** Control case: defaults outside any `oneOf` are re-applied to the new model. */
-  get plainDefaults(): Pick<JobModel, 'name' | 'enabled' | 'retries'> {
-    const { name, enabled, retries } = this.modelAfterModelReplaced ?? {};
-    return { name, enabled, retries };
+  /** Control case: a default outside the `oneOf` is re-applied to the new model. */
+  get plainDefaultReapplied(): boolean {
+    return this.modelAfterModelReplaced?.name === 'my-job';
   }
 
-  get plainDefaultsReapplied(): boolean {
-    const { name, enabled, retries } = this.plainDefaults;
-    return name === 'my-job' && enabled === true && retries === 3;
+  /** Issue 1: the selected branch's default is not re-applied to the new model. */
+  get branchDefaultReapplied(): boolean {
+    return this.modelAfterModelReplaced?.output?.timeoutMs === 5000;
   }
 
-  /** Issue 1: the selected branch's defaults are not re-applied to the new model. */
-  get branchDefaults(): Pick<NonNullable<JobModel['output']>, 'method' | 'timeoutMs'> {
-    const { method, timeoutMs } = this.modelAfterModelReplaced?.output ?? {};
-    return { method, timeoutMs };
-  }
-
-  get branchDefaultsReapplied(): boolean {
-    const { method, timeoutMs } = this.branchDefaults;
-    return method === 'POST' && timeoutMs === 5000;
-  }
-
-  get branchDefaultsAtFirstRender(): Pick<NonNullable<JobModel['output']>, 'method' | 'timeoutMs'> {
-    const { method, timeoutMs } = this.modelAtFirstRender.output ?? {};
-    return { method, timeoutMs };
-  }
-
-  get branchDefaultsAppliedAtFirstRender(): boolean {
-    const { method, timeoutMs } = this.branchDefaultsAtFirstRender;
-    return method === 'POST' && timeoutMs === 5000;
+  get branchDefaultAppliedAtFirstRender(): boolean {
+    return this.modelAtFirstRender.output?.timeoutMs === 5000;
   }
 
   get modelChanged(): boolean {
