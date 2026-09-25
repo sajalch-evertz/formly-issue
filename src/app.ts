@@ -7,6 +7,7 @@ import type { Observable } from "rxjs";
 import { Subject, map, timer } from "rxjs";
 
 import { JsonFormComponent } from "./json-form.component";
+import { MinimalComponent } from "./minimal.component";
 
 /**
  * A JSON schema that may also carry `widget.formlyConfig`, Formly's way of adding field config
@@ -87,12 +88,12 @@ function api<T>(value: T, ms: number): Observable<T> {
  * The page. It uses the form the way a real screen does:
  *
  * 1. `isAdmin` is already known (the current user was loaded earlier) and sits in `formState`.
- * 2. Load the schema and the record from an API, then render `eio-json-form`.
+ * 2. Load the schema and the record from an API, then render `app-json-form`.
  * 3. Pass the record in with `[ngModel]`. There is no hand-written model swap anywhere.
  */
 @Component({
   selector: "app-root",
-  imports: [AsyncPipe, JsonPipe, FormsModule, JsonFormComponent],
+  imports: [AsyncPipe, JsonPipe, FormsModule, JsonFormComponent, MinimalComponent],
   templateUrl: "./app.html",
   styleUrl: "./app.css",
 })

@@ -27,7 +27,7 @@ type JsonObject = Record<string, unknown>;
  * and the pristine/valid outputs. None of those affects the bug.
  */
 @Component({
-  selector: "eio-json-form",
+  selector: "app-json-form",
   imports: [ReactiveFormsModule, FormlyForm],
   template: `
     <form [formGroup]="formGroup">
@@ -105,7 +105,6 @@ export class JsonFormComponent implements OnInit, OnChanges, ControlValueAccesso
   writeValue(value: JsonObject | null | undefined): void {
     this._originalValue = value;
     this.model = cloneJson(value ?? {});
-    this.onModelChange(cloneJson(this.model));
     this.changeDetectorRef.detectChanges();
   }
 

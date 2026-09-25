@@ -1,7 +1,7 @@
 <div class="container-xxl py-4">
   <h1 class="h4">ngx-formly 7.1.0: a field visible on first paint loses its schema <code>default</code></h1>
   <ul class="text-secondary">
-    <li>The form is rendered by a copy of evertz's <code>eio-json-form</code>, with the record bound through
+    <li>The form is rendered by a copy of a production <code>ControlValueAccessor</code> wrapper, with the record bound through
       <code>[ngModel]</code>.</li>
     <li><code>URL</code> and <code>Path</code> have <code>"hide": "!formState.isAdmin"</code>. The user is an
       admin, so they are on screen from the first render.</li>
@@ -19,7 +19,7 @@
         <div class="card-body">
           @let formData = formData$ | async;
           @if (formData) {
-            <eio-json-form
+            <app-json-form
               [formlyOptions]="formlyOptions"
               [ngModel]="formData.model"
               [resetForm$]="resetForm$"
@@ -114,6 +114,13 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="card mt-4">
+    <div class="card-header fw-semibold">Minimal: Issue 1 with plain <code>&lt;formly-form&gt;</code> and one model swap</div>
+    <div class="card-body">
+      <app-minimal />
     </div>
   </div>
 </div>

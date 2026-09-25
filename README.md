@@ -80,6 +80,18 @@ screen:
 1. `npm start` and open the page. `Name` shows `my-job`; `URL` and `Timeout (ms)` are empty.
 2. Switch the branch to `File` and back: the values come back. Press `Discard`: they go again.
 
+### Minimal form
+
+JSON Schema, `oneOf` and the wrapper are not needed.
+[`src/minimal.component.ts`](src/minimal.component.ts) is plain `<formly-form>` with three fields
+and one `this.model = {}` after the first render:
+
+| Field | Config | Default after the swap |
+| --- | --- | --- |
+| `plain` | `defaultValue: "p"` | kept |
+| `withHide` | `defaultValue: "h"`, `expressions: { hide: "false" }` | **lost** |
+| `hideProp` | `defaultValue: "f"`, `hide: false` | kept |
+
 ### Why
 
 1. **The first build applies the defaults.** Each field's `hide` goes from `undefined` to

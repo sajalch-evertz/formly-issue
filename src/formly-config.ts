@@ -7,7 +7,6 @@ import {
   InputTypeComponent,
 } from './field-types';
 
-/** Shared by the app bootstrap and the spec so the two can never drift apart. */
 export const FORMLY_CONFIG: ConfigOption = {
   // Formly's default, stated here so the repro's premise is explicit rather than implied.
   extras: { resetFieldOnHide: true },
