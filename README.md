@@ -1,12 +1,12 @@
-# ngx-formly: schema defaults are lost when the form is handed a new model object
+# ngx-formly: a field visible on first paint loses its schema `default`
 
 Minimal reproduction of two independent issues.
 
-1. A schema `default` is applied only when its field appears on screen, so a later write of the
-   `[model]` never gets one. Everything inside a `oneOf` is affected, visible or not.
+1. A field with a `hide` expression, or inside a `oneOf` branch, that is visible when the form is
+   handed its record never gets its schema `default`.
 2. Changing a `oneOf` branch selector changes the model but leaves the form pristine.
 
-**Live:** https://sajalch-evertz.github.io/formly-issue/
+**Live:** <https://sajalch-evertz.github.io/formly-issue/>
 
 ## Versions
 
@@ -19,63 +19,27 @@ Minimal reproduction of two independent issues.
 
 - No UI theme package: `@ngx-formly/bootstrap` is not installed, Bootstrap is a stylesheet only.
 - The field types in [`src/field-types.ts`](src/field-types.ts) are the ones the
-  [JSON Schema guide](https://formly.dev/docs/guides/json-schema) says to register, and each one
-  just renders its control or its `fieldGroup`.
+  [JSON Schema guide](https://formly.dev/docs/guides/json-schema) says to register.
 
 ## Run it
 
 ```bash
 npm install
-npm start    # http://localhost:4300, a PASS/FAIL panel for both issues
+npm start    # http://localhost:4300
 ```
 
-`src/main.ts` imports `@angular/compiler` before bootstrapping, so the app also runs in a sandbox
-that bundles without the Angular CLI and therefore without the Angular Linker.
+## How the form is hosted
 
----
+Nothing on the page writes the model by hand. The form is hosted the way a real screen hosts it:
 
-## Issue 1: a `default` is applied only when its field becomes visible, so a later write loses it
+- [`src/json-form.component.ts`](src/json-form.component.ts) is a cut-down copy of a production
+  `ControlValueAccessor` wrapper around `<formly-form>`. `writeValue` clones the incoming record,
+  because Formly mutates its model and the record comes from an immutable store.
+- [`src/app.ts`](src/app.ts) loads the form data from an API call and binds the record with
+  `[ngModel]`. `formState.isAdmin`, which the `hide` expressions read, is already `true`: the
+  current user was loaded before this screen, as it usually is in an app.
 
-- A schema `default` is written into the model **only** when its field appears on screen.
-- Each write to the form hands Formly a **new** object, and only the first write makes the branch
-  appear.
-- So every later write leaves the branch fields blank. `name`, outside the `oneOf`, survives.
-
-### What you see
-
-Write 2 handed over an empty record, exactly like the one write 1 filled in:
-
-```json
-after write 1:  { "name": "my-job", "output": { "url": "https://example.test/ingest", "timeoutMs": 5000 } }
-after write 2:  { "name": "my-job" }
-```
-
-### Steps
-
-1. `npm start` and open the page. `Name` shows `my-job`; `URL` and `Timeout (ms)` are empty.
-2. Card 1 (first render) holds the branch defaults. Card 2 (after the new model) does not.
-3. Switch the branch to `File` and back and they reappear; press `Discard` and they go again.
-
-### Why a form is written to more than once
-
-Angular's contract, not something the page arranges:
-
-- `setUpControl()` calls `writeValue(control.value)` the instant a `ControlValueAccessor`
-  registers, and on a fresh `NgModel` that value is `null`. `NgModel._updateValue` then defers the
-  real value to a microtask, so it always lands after that. Every discard writes again.
-- A wrapper must clone per write, or Formly mutates a store object. So it rebuilds at least twice
-  on load and once per discard. No ordering avoids it.
-
-### Why "appears on screen" catches every `oneOf`
-
-- `resolveMultiSchema()` puts a `hide` expression on every branch, so everything inside inherits
-  one without the schema asking. That is `timeoutMs`, which has none of its own.
-- `url` has its own, `"hide": "!formState.isAdmin"`, on a flag that is `true` throughout, so the
-  field is visible the whole time. Lost too.
-- Either is enough. No `oneOf` needed: one plain field with a `hide` expression and a `default`
-  loses it the same way.
-
-### The schema
+## The schema
 
 ```jsonc
 {
@@ -98,38 +62,49 @@ Angular's contract, not something the page arranges:
 }
 ```
 
-### Why the default goes in only once
+---
 
-Only two places in Formly write a `defaultValue` into the model, and a rebuild reaches neither.
+## Issue 1: a visible field never gets its `default`
 
-- **`CoreExtension.onPopulate` skips it.** Its gate ends in `!isHiddenField(field)`, and
-  `isHiddenField` tests whether a `hide` expression **exists**, not what it evaluates to:
+### What you see
 
-  ```ts
-  const isHidden = (f) => f.hide || f.expressions?.hide || f.hideExpression;
-  ```
+Formly's model 2 s after load. The user is an admin, so `URL` and `Timeout (ms)` are both on
+screen:
 
-  `f.expressions.hide` is a function, so it is permanently truthy, and the walk up the parents
-  covers everything inside a branch. A visible field counts as hidden.
+| `name` | `output.url` | `output.timeoutMs` |
+| --- | --- | --- |
+| `"my-job"` | **missing** | **missing** |
 
-- **`changeHideState()`'s `hide === false` arm holds the other one**, and it runs only on a
-  **transition** of `field.hide`.
+### Steps
 
-- **There is no transition.** `build()` ends with `checkExpressions(field, true)`, which
-  re-assigns `field.hide = false` over `false`, and `observe()`'s setter drops a write that does
-  not change the value:
+1. `npm start` and open the page. `Name` shows `my-job`; `URL` and `Timeout (ms)` are empty.
+2. Switch the branch to `File` and back: the values come back. Press `Discard`: they go again.
 
-  ```ts
-  set: (currentValue) => {
-    if (currentValue !== state.value) { ...state.onChange.forEach(...) }
-  }
-  ```
+### Why
 
-  Nothing reaches `_hiddenFieldsForCheck`, so `postPopulate` has nothing to drain. Meanwhile
-  `registerControl()` patches the control to the new model's `undefined`, which blanks the input.
+1. **The first build applies the defaults.** Each field's `hide` goes from `undefined` to
+   `false`, a real transition.
+2. **`[ngModel]` then writes the record into the wrapper.** Angular's `NgModel` hands the value
+   over in `writeValue`, and the wrapper clones it, so Formly gets a new, empty model object and
+   rebuilds against it. A discard does the same.
+3. **The rebuild does not re-apply the defaults.** Only two places in Formly write a
+   `defaultValue` into the model, and neither runs:
 
-- **The passing cases fit.** First render assigns `false` over `undefined`, a real transition.
-  Switching branch away and back is two of them, which is why the values come back.
+   - **`CoreExtension.onPopulate` skips it.** Its gate ends in `!isHiddenField(field)`, and
+     `isHiddenField` tests whether a `hide` expression **exists**, not what it evaluates to:
+
+     ```ts
+     const isHidden = (f) => f.hide || f.expressions?.hide || f.hideExpression;
+     ```
+
+     The walk up the parents covers everything inside a branch, because `resolveMultiSchema()`
+     puts a `hide` expression on every branch. A visible field counts as hidden.
+
+   - **`changeHideState()`'s `hide === false` arm** runs only on a **transition** of
+     `field.hide`, and `false` over `false` is none: `observe()`'s setter drops a write that does
+     not change the value.
+
+To isolate step 2: with `writeValue` not reassigning the model, every default is kept.
 
 ### `resetOnHide` is the deciding term, and its global switch cannot reach a branch
 
@@ -137,36 +112,13 @@ Only two places in Formly write a `defaultValue` into the model, and a rebuild r
 let setDefaultValue = !field.resetOnHide || !isHidden(field);
 ```
 
-- With `resetOnHide` falsy the default is assigned at build time and the defect disappears, no
-  hide transition required.
-- This repro sets `extras: { resetFieldOnHide: true }` explicitly in
-  [`src/formly-config.ts`](src/formly-config.ts), which is Formly's own default, so the premise is
-  stated rather than implied.
-- Two ways to turn it off, only one works. Measured, model before the second write and after:
-
-| | before | after |
-| --- | --- | --- |
-| stock config | `{"url": "...", "timeoutMs": 5000}` | `{}` |
-| `extras: { resetFieldOnHide: false }` | `{"url": "...", "timeoutMs": 5000}` | `{}` |
-| `resetOnHide: false` on `timeoutMs` only | `{"url": "...", "timeoutMs": 5000}` | `{"timeoutMs": 5000}` |
-
-The app-level switch makes no difference, because the JSON schema service overrides it for
-anything under a `oneOf`:
-
-```ts
-// formly-json-schema.service.ts
-if (options.resetOnHide) {
-  field.resetOnHide = true;
-}
-```
-
-`resolveMultiSchema()` always passes `resetOnHide: true` in those options, so for a branch and
-everything inside it `resetOnHide` is `true` whatever the application configured.
+- With `resetOnHide` falsy the default is assigned at build time, no hide transition required.
+- `extras: { resetFieldOnHide: false }` makes no difference inside a `oneOf`, because the JSON
+  schema service sets `field.resetOnHide = true` for anything under one, whatever the app says.
 
 ### Consumer workaround
 
-Per field, through Formly's schema extension. It is merged later in `_toFieldConfig()` than the
-line above, and `CoreExtension` respects it because it tests `field.resetOnHide !== false`:
+Per field, through Formly's schema extension:
 
 ```jsonc
 "timeoutMs": {
@@ -176,15 +128,16 @@ line above, and `CoreExtension` respects it because it tests `field.resetOnHide 
 }
 ```
 
-- It changes reset semantics: a genuinely hidden field now keeps its value in the model, so an
-  access-gated field would submit its default to a user who cannot see it.
-- It has to go on every property that declares a `default`.
+It changes reset semantics: a genuinely hidden field now keeps its value in the model, so an
+access-gated field would submit its default to a user who cannot see it. The other workaround is
+to force every field hidden until the form has settled, then flip it visible: Formly does write
+a default when a field goes from hidden to visible.
 
 ### Suggestion
 
-Either make `isHiddenField()` consult the evaluated hide state rather than the presence of an
-expression, so `CoreExtension` can assign the default for a field that is visible, or re-apply
-`defaultValue` when a visible field's control is re-registered against a new model.
+Make `isHiddenField()` consult the evaluated hide state rather than the presence of an
+expression. Or re-apply `defaultValue` when a visible field's control is re-registered against a
+new model.
 
 ---
 
@@ -193,33 +146,13 @@ expression, so `CoreExtension` can assign the default for a field that is visibl
 ### Steps
 
 1. Select **File** in the branch selector.
-2. The model becomes `{ "name": "my-job", "output": { "rotateMb": 100 } }`, so the form no longer
-   holds what it loaded with.
-3. `form.dirty` is still `false`.
+2. The model changes, so the form no longer holds what it loaded with.
+3. `form.dirty` is still `false`, and **Discard** stays disabled.
 
-### Expected
+### Why
 
-A user-driven branch change reaches the form's dirty state: `form.dirty` becomes `true`.
-
-### Actual
-
-`form.dirty` stays `false` for as long as the user only switches branches, so nothing driven by
-the form's pristine state sees the change.
-
-### Why it happens
-
-The selector `resolveMultiSchema()` builds has no `key`:
-
-```ts
-{
-  type: 'enum',
-  defaultValue: -1,
-  props: { multiple: mode === 'anyOf', options: schemas.map(...) },
-  hooks: { onInit: (f) => f.formControl.valueChanges.pipe(tap(() => f.options.detectChanges(f.parent))) },
-}
-```
-
-and `registerControl()` returns early for a field without a key:
+The selector `resolveMultiSchema()` builds has no `key`, and `registerControl()` returns early for
+a field without one:
 
 ```ts
 if (!field.form || !hasKey(field)) {
@@ -227,9 +160,8 @@ if (!field.form || !hasKey(field)) {
 }
 ```
 
-- The selector's control is never attached to the form.
-- Its `ControlValueAccessor` marks that detached control dirty on a real user selection.
-- The root form never hears about it.
+The selector's control is never attached to the form, so a user selection marks a detached
+control dirty and the root form never hears about it.
 
 ### Suggestion
 
@@ -247,18 +179,3 @@ selector.props.change = (field: FormlyFieldConfig): void => {
   root.formControl?.markAsDirty();
 };
 ```
-
----
-
-## Ruled out
-
-Issue 1 is not specific to a schema shape. Defaults are applied correctly on the first render for:
-
-- a property-level `oneOf`
-- a root-level `oneOf` alongside `properties`
-- `array.items.oneOf` with a row already in the model
-- a row added through the array's Add button
-- all of the above at one and at two levels of nesting
-
-The only trigger is a later write of the `[model]`, and the only condition is that a `hide`
-expression exists on the field or on an ancestor.

@@ -1,16 +1,15 @@
 <div class="container-xxl py-4">
-  <h1 class="h4">ngx-formly 7.1.0: a schema <code>default</code> is applied only once</h1>
+  <h1 class="h4">ngx-formly 7.1.0: a field visible on first paint loses its schema <code>default</code></h1>
   <ul class="text-secondary">
-    <li>A schema <code>default</code> is written into the model <b>only</b> when its field appears
-      on screen.</li>
-    <li>Each write to the form hands Formly a <b>new</b> object, and only the first write makes
-      the branch appear.</li>
-    <li>So every later write leaves the branch fields blank. <code>Name</code>, outside the
-      <code>oneOf</code>, survives.</li>
+    <li>The form is rendered by a copy of evertz's <code>eio-json-form</code>, with the record bound through
+      <code>[ngModel]</code>.</li>
+    <li><code>URL</code> and <code>Path</code> have <code>"hide": "!formState.isAdmin"</code>. The user is an
+      admin, so they are on screen from the first render.</li>
+    <li>Their defaults, and <code>Timeout (ms)</code>'s, never reach the model. <code>Name</code>, with no
+      <code>hide</code>, keeps its default.</li>
   </ul>
-  <p class="text-secondary small">
-    Stock field types, Bootstrap as a stylesheet only. Full write-up in the
-    <a href="https://github.com/sajalch-evertz/formly-issue">README</a>.
+  <p class="small text-secondary">
+    Full write-up in the <a href="https://github.com/sajalch-evertz/formly-issue">README</a>.
   </p>
 
   <div class="row g-4">
@@ -18,16 +17,24 @@
       <div class="card">
         <div class="card-header fw-semibold">Form</div>
         <div class="card-body">
-          <form [formGroup]="form">
-            <formly-form [form]="form" [fields]="fields" [model]="model" [options]="options" />
-          </form>
-          <hr />
-          <button type="button" class="btn btn-primary btn-sm" [disabled]="form.pristine" (click)="discard()">
-            Discard
-          </button>
-          <div class="small text-secondary mt-2">
-            <code>form.pristine</code> = {{ form.pristine }}, <code>form.dirty</code> = {{ form.dirty }}
-          </div>
+          @let formData = formData$ | async;
+          @if (formData) {
+            <eio-json-form
+              [formlyOptions]="formlyOptions"
+              [ngModel]="formData.model"
+              [resetForm$]="resetForm$"
+              [schema]="formData.schema"
+            />
+            <hr />
+            <button type="button" class="btn btn-primary btn-sm" [disabled]="!dirty" (click)="resetForm$.next()">
+              Discard
+            </button>
+            <div class="small text-secondary mt-2">
+              <code>form.dirty</code> = {{ dirty }}
+            </div>
+          } @else {
+            <p class="mb-0">Loading…</p>
+          }
         </div>
       </div>
     </div>
@@ -47,23 +54,13 @@
             </thead>
             <tbody>
               <tr>
-                <td>First render, before the new model: the branch defaults</td>
-                <td>both present</td>
-                <td><code>{{ modelAtFirstRender.output | json }}</code></td>
-                <td>
-                  @if (branchDefaultsAppliedAtFirstRender) {
-                    <span class="badge text-bg-success">PASS</span>
-                  } @else {
-                    <span class="badge text-bg-danger">FAIL</span>
-                  }
-                </td>
-              </tr>
-              <tr>
-                <td>After the new model: <code>name</code>, which has no <code>hide</code> expression</td>
+                <td><code>name</code>, which has no <code>hide</code> expression</td>
                 <td><code>"my-job"</code></td>
-                <td><code>{{ modelAfterModelReplaced?.name | json }}</code></td>
+                <td><code>{{ settled?.name | json }}</code></td>
                 <td>
-                  @if (plainDefaultReapplied) {
+                  @if (!settled) {
+                    <span class="badge text-bg-secondary">waiting</span>
+                  } @else if (checkIfPlainDefaultApplied) {
                     <span class="badge text-bg-success">PASS</span>
                   } @else {
                     <span class="badge text-bg-danger">FAIL</span>
@@ -71,11 +68,13 @@
                 </td>
               </tr>
               <tr>
-                <td><b>Issue 1:</b> after the new model: the branch defaults</td>
+                <td><b>Issue 1:</b> the HTTP branch defaults, with <code>URL</code> visible</td>
                 <td>both present</td>
-                <td><code>{{ modelAfterModelReplaced?.output | json }}</code></td>
+                <td><code>{{ settled?.output | json }}</code></td>
                 <td>
-                  @if (branchDefaultsReapplied) {
+                  @if (!settled) {
+                    <span class="badge text-bg-secondary">waiting</span>
+                  } @else if (checkIfBranchDefaultsApplied) {
                     <span class="badge text-bg-success">PASS</span>
                   } @else {
                     <span class="badge text-bg-danger">FAIL</span>
@@ -85,11 +84,11 @@
               <tr>
                 <td><b>Issue 2:</b> after switching branch: <code>form.dirty</code></td>
                 <td><code>true</code></td>
-                <td><code>{{ form.dirty }}</code></td>
+                <td><code>{{ dirty }}</code></td>
                 <td>
-                  @if (!modelChanged) {
+                  @if (!checkIfModelChanged) {
                     <span class="badge text-bg-warning">switch the selector</span>
-                  } @else if (dirtyTracksBranchSwitch) {
+                  } @else if (checkIfDirtyAfterBranchSwitch) {
                     <span class="badge text-bg-success">PASS</span>
                   } @else {
                     <span class="badge text-bg-danger">FAIL</span>
@@ -102,43 +101,19 @@
       </div>
 
       <div class="row g-3 mt-1">
-        <div class="col-md-4">
+        <div class="col-md-6">
           <div class="card h-100">
-            <div class="card-header small fw-semibold">1. At the first render</div>
-            <pre class="card-body mb-0 small">{{ modelAtFirstRender | json }}</pre>
+            <div class="card-header small fw-semibold">1. Once every response is in (2 s)</div>
+            <pre id="settled" class="card-body mb-0 small">{{ settled | json }}</pre>
           </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-6">
           <div class="card h-100">
-            <div class="card-header small fw-semibold">2. After the new model</div>
-            <pre class="card-body mb-0 small">{{ modelAfterModelReplaced | json }}</pre>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card h-100">
-            <div class="card-header small fw-semibold">3. Now</div>
+            <div class="card-header small fw-semibold">2. Now</div>
             <pre class="card-body mb-0 small">{{ model | json }}</pre>
           </div>
         </div>
       </div>
     </div>
   </div>
-
-  <h2 class="h6 mt-4">Issue 1: a <code>default</code> is applied only when its field becomes visible</h2>
-  <ul class="text-secondary">
-    <li>Card 1 holds the branch defaults. Card 2, the same object after the second write, does not.</li>
-    <li>Switch the branch and back and they reappear; press <b>Discard</b> and they go again,
-      because a discard is another write.</li>
-    <li><code>URL</code> has its own <code>"hide": "!formState.isAdmin"</code> with the flag
-      <code>true</code>, so it is visible throughout and still loses its default.
-      <code>Timeout (ms)</code> has none, only the branch's.</li>
-  </ul>
-
-  <h2 class="h6">Issue 2: switching branch leaves the form pristine</h2>
-  <ul class="text-secondary">
-    <li>Switch the selector: the model changes, <code>form.dirty</code> stays <code>false</code>,
-      <b>Discard</b> stays disabled.</li>
-    <li>The selector Formly builds has no <code>key</code>, so its control is never attached to
-      the form.</li>
-  </ul>
 </div>
