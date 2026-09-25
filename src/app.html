@@ -29,6 +29,11 @@
             <button type="button" class="btn btn-primary btn-sm" [disabled]="!dirty" (click)="resetForm$.next()">
               Discard
             </button>
+            @if (checkIfModelChanged && !dirty) {
+              <span class="small ms-2 text-danger">
+                Expected: enabled, because switching branch changed the model (Issue 2).
+              </span>
+            }
             <div class="small text-secondary mt-2">
               <code>form.dirty</code> = {{ dirty }}
             </div>
